@@ -1,56 +1,48 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./ETHWrapper.sol";
-import "./interfaces/IERC20Token.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC20Token, IERC20Token} from "./ERC20Token.sol";
+import {IBridge} from "./interfaces/IBridge.sol";
 
-// import "./interfaces/IBridge.sol";
+contract Bridge is IBridge, Ownable {
+    uint256 constant SERVICE_FEE = 0.01 ether;
+    uint256 constant SOURCE_CHAIN_ID = 11155111; // SEPOLIA
+    uint256 constant TARGET_CHAIN_ID = 80001; // MUMBAI
 
-contract Bridge {
-    uint256 immutable chaindId;
-    address public admin;
-    IERC20Token public token;
     mapping(address => mapping(uint => bool)) public processedNonces;
+    mapping(address => ERC20Token) public wrappedTokenContracts;
+    address[] public createdWrappedTokens;
 
-    // the source and target addresses will be swapped and the chaindId(uint256) will be different
-    // mapping(uint256 => mapping(address => address)) sourceTokenToTargetToken;
-    mapping(address => address) sourceTokenToTargetToken;
-    // mapping(uint256 => mapping(address => address)) targetTokenToSourceToken;
-    // ETHWrapper public ethWrapper;
-    uint256 serviceFee = 0.01 ether;
+    event RegisterToken(
+        address indexed token,
+        string name,
+        string symbol,
+        address from
+    );
 
-    // enum Step {
-    //     Burn,
-    //     Mint
-    // }
-    // event Transfer(
-    //     Step indexed step,
-    //     address from,
-    //     address to,
-    //     uint amount,
-    //     uint date,
-    //     uint nonce,
-    //     bytes signature
-    // );
+    event DeployToken(address indexed source, address indexed wrapper);
+
     event BurnToken(
+        address token,
         address from,
-        address to,
+        uint256 chainId,
         uint amount,
         uint date,
-        uint nonce,
-        bytes signature
+        uint nonce
     );
 
     event LockToken(
-        address from,
-        uint256 targetChainId,
         address token,
+        address from,
+        uint256 chainId,
         uint amount,
         bytes signature
     );
 
     event ClaimToken(
+        address token,
         address from,
         address to,
         uint amount,
@@ -59,109 +51,125 @@ contract Bridge {
         bytes signature
     );
 
-    constructor(address _token) {
-        admin = msg.sender;
-        token = IERC20Token(_token);
-        chaindId = block.chainid;
-    }
+    event ReleaseToken(address token, address to, uint amount);
 
     // Add a new token that is unknown up to this point
-    function registerToken(
-        string memory _name,
-        string memory _symbol
-    ) external /* override onlyOwner returns (ERC20Token wrappedToken) */ {
-        // if (sourceTokenToTargetToken)
-        // ERC20Token ercToken = new ERC20Token(_name, _symbol, msg.sender);
-        // wrappedTokenContracts[address(ercToken)] = ercToken;
-        // createdWrappedTokens.push(address(ercToken));
-        // emit ETHTokenCreated(address(ercToken), _name, _symbol);
-        // return ercToken;
+    function registerToken(address _token) external /* onlyOwner */ {
+        // Add additional checks, if the token has already been wrapped on the other chain
+        if (block.chainid == SOURCE_CHAIN_ID) {
+            string memory _name = ERC20Token(_token).name();
+            string memory _symbol = ERC20Token(_token).symbol();
+
+            emit RegisterToken(_token, _name, _symbol, msg.sender);
+        }
     }
 
+    function deployWrappedToken(
+        address _token,
+        string memory _name,
+        string memory _symbol
+    ) external onlyOwner {
+        if (
+            block.chainid == TARGET_CHAIN_ID &&
+            wrappedTokenContracts[_token] == ERC20Token(address(0))
+        ) {
+            ERC20Token ercToken = new ERC20Token(_name, _symbol, msg.sender);
+            wrappedTokenContracts[address(ercToken)] = ercToken;
+            createdWrappedTokens.push(address(ercToken));
+
+            emit DeployToken(_token, address(ercToken));
+        }
+    }
+
+    // Optional - Brigde will have to pay fees and for txs to update mapping
+    // function update(address sourceAddr, address targetAddr) external onlyOwner {
+    //     wrappedTokenContracts[sourceAddr] = ERC20Token(targetAddr);
+    // }
+
     function lockToken(
-        uint256 _targetChainId,
         address _token,
         uint256 _amount,
         bytes calldata _signature
     ) external payable {
-        require(_amount > 0, "Bridged amount is required.");
-        require(msg.value >= serviceFee, "Not enough service fee");
         require(
-            sourceTokenToTargetToken[_token] != address(0),
+            wrappedTokenContracts[_token] != ERC20Token(address(0)),
             "Register the token before bridging it"
         );
-        // ERC20(_token).permit(); // Add permit functionality
-        ERC20(_token).transferFrom(msg.sender, address(this), _amount);
-        emit LockToken(msg.sender, _targetChainId, _token, _amount, _signature);
-    }
-
-    function release(uint256 _amount, address payable _token) external {
-        // ERC20Token(_token).transfer(msg.sender, _amount);
-        // emit ReleaseToken(msg.sender, _token, _amount);
-    }
-
-    function burn(
-        address to,
-        uint amount,
-        uint nonce,
-        bytes calldata signature
-    ) external {
-        // Burn can be called only for the wrapped tokens on Mumbai
-        if (chaindId != 80001) revert();
+        require(_amount > 0, "Bridged amount is required.");
+        require(msg.value >= SERVICE_FEE, "Not enough service fee");
         require(
-            processedNonces[msg.sender][nonce] == false,
+            block.chainid == SOURCE_CHAIN_ID,
+            "Can lock token only on source chain"
+        );
+        // ERC20(_token).permit(); // Add permit functionality
+        IERC20(_token).transferFrom(msg.sender, address(this), _amount);
+        emit LockToken(_token, msg.sender, block.chainid, _amount, _signature);
+    }
+
+    function release(
+        address _token,
+        address _to,
+        uint256 _amount
+    ) external onlyOwner {
+        IERC20(_token).transfer(_to, _amount);
+        emit ReleaseToken(_token, _to, _amount);
+    }
+
+    function burn(address _token, uint256 _amount, uint _nonce) external {
+        // Burn can be called only for the wrapped tokens on Mumbai
+        require(
+            block.chainid == TARGET_CHAIN_ID,
+            "Can only burn wrapped tokens on target chain"
+        );
+        require(
+            processedNonces[msg.sender][_nonce] == false,
             "transfer already processed"
         );
-        processedNonces[msg.sender][nonce] = true;
-        token.burn(msg.sender, amount);
-        // emit Transfer(
-        //     Step.Burn,
-        //     msg.sender,
-        //     to,
-        //     amount,
-        //     block.timestamp,
-        //     nonce,
-        //     signature
-        // );
+        processedNonces[msg.sender][_nonce] = true;
+
+        IERC20Token(_token).burn(msg.sender, _amount);
         emit BurnToken(
+            _token,
             msg.sender,
-            to,
-            amount,
+            block.chainid,
+            _amount,
             block.timestamp,
-            nonce,
-            signature
+            _nonce
         );
     }
 
-    function mint(
-        address from,
-        address to,
-        uint amount,
-        uint nonce,
-        bytes calldata signature
+    function claim(
+        address _token,
+        address _from,
+        address _to,
+        uint _amount,
+        uint _nonce,
+        bytes calldata _signature
     ) external {
-        if (chaindId != 80001) revert();
+        require(
+            block.chainid == TARGET_CHAIN_ID,
+            "Can only claim wrapped tokens on target chain"
+        );
+        require(
+            processedNonces[_from][_nonce] == false,
+            "transfer already processed"
+        );
 
         bytes32 message = prefixed(
-            keccak256(abi.encodePacked(from, to, amount, nonce))
+            keccak256(abi.encodePacked(_from, _to, _amount, _nonce))
         );
-        require(recoverSigner(message, signature) == from, "wrong signature");
-        require(
-            processedNonces[from][nonce] == false,
-            "transfer already processed"
+        require(recoverSigner(message, _signature) == _from, "wrong signature");
+        processedNonces[_from][_nonce] = true;
+        IERC20Token(_token).mint(_to, _amount);
+        emit ClaimToken(
+            _token,
+            _from,
+            _to,
+            _amount,
+            block.timestamp,
+            _nonce,
+            _signature
         );
-        processedNonces[from][nonce] = true;
-        token.mint(to, amount);
-        // emit Transfer(
-        //     Step.Mint,
-        //     from,
-        //     to,
-        //     amount,
-        //     block.timestamp,
-        //     nonce,
-        //     signature
-        // );
-        emit ClaimToken(from, to, amount, block.timestamp, nonce, signature);
     }
 
     function prefixed(bytes32 hash) internal pure returns (bytes32) {
