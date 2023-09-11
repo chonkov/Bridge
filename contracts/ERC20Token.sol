@@ -15,7 +15,7 @@ contract ERC20Token is IERC20Token, Ownable, ERC20 {
         address _owner
     ) ERC20(_name, _symbol) {
         transferOwnership(_owner);
-        _mint(owner(), 1000 * 10 ** 18);
+        // _mint(owner(), 1000 * 10 ** 18);
     }
 
     function mint(address to, uint amount) external onlyOwner {
