@@ -49,13 +49,22 @@ describe("ERC20Token", function () {
     });
 
     it("Should emit an event", async function () {
-      const { myToken, signer, other } = await loadFixture(deployERC20Token);
+      const { myToken, signer } = await loadFixture(deployERC20Token);
       const value = ethers.parseEther("1");
 
       expect(await myToken.connect(signer).mint(signer.address, value))
         .to.emit("ERC20TokenMinted")
         .withArgs([signer.address, value]);
       expect(await myToken.balanceOf(signer.address)).to.equal(value);
+    });
+
+    it("Should throw an error", async function () {
+      const { myToken, signer, other } = await loadFixture(deployERC20Token);
+      const value = ethers.parseEther("1");
+
+      await expect(
+        myToken.connect(other[0]).mint(other[0].address, value)
+      ).to.be.revertedWith("Ownable: caller is not the owner");
     });
   });
 
@@ -78,6 +87,16 @@ describe("ERC20Token", function () {
       expect(await myToken.burn(signer.address, value))
         .to.emit("ERC20TokenMinted")
         .withArgs([signer.address, value]);
+    });
+
+    it("Should throw an error", async function () {
+      const { myToken, signer, other } = await loadFixture(deployERC20Token);
+      const value = ethers.parseEther("1");
+
+      await myToken.connect(signer).mint(signer.address, value);
+      await expect(
+        myToken.connect(other[0]).burn(other[0].address, value)
+      ).to.be.revertedWith("Ownable: caller is not the owner");
     });
   });
 });
