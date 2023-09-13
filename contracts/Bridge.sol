@@ -2,14 +2,14 @@
 pragma solidity ^0.8.17;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20, IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import {ERC20Token, IERC20Token} from "./ERC20Token.sol";
 import {IBridge} from "./interfaces/IBridge.sol";
 
 contract Bridge is IBridge, Ownable {
-    uint256 constant SERVICE_FEE = 0.01 ether;
-    uint256 constant SOURCE_CHAIN_ID = 11155111; // SEPOLIA
-    uint256 constant TARGET_CHAIN_ID = 80001; // MUMBAI
+    uint256 public constant SERVICE_FEE = 0.01 ether;
+    uint256 public constant SOURCE_CHAIN_ID = 11155111; // SEPOLIA
+    uint256 public constant TARGET_CHAIN_ID = 80001; // MUMBAI
 
     mapping(address => mapping(uint => bool)) public processedNonces;
     mapping(address => ERC20Token) public wrappedTokenContracts;
@@ -45,6 +45,7 @@ contract Bridge is IBridge, Ownable {
         address token,
         address from,
         address to,
+        uint chainId,
         uint amount,
         uint date,
         uint nonce,
@@ -56,12 +57,12 @@ contract Bridge is IBridge, Ownable {
     // Add a new token that is unknown up to this point
     function registerToken(address _token) external /* onlyOwner */ {
         // Add additional checks, if the token has already been wrapped on the other chain
-        if (block.chainid == SOURCE_CHAIN_ID) {
-            string memory _name = ERC20Token(_token).name();
-            string memory _symbol = ERC20Token(_token).symbol();
+        // if (block.chainid == SOURCE_CHAIN_ID) {
+        string memory _name = ERC20Token(_token).name();
+        string memory _symbol = ERC20Token(_token).symbol();
 
-            emit RegisterToken(_token, _name, _symbol, msg.sender);
-        }
+        emit RegisterToken(_token, _name, _symbol, msg.sender);
+        // }
     }
 
     function deployWrappedToken(
@@ -70,15 +71,16 @@ contract Bridge is IBridge, Ownable {
         string memory _symbol
     ) external onlyOwner {
         if (
-            block.chainid == TARGET_CHAIN_ID &&
-            wrappedTokenContracts[_token] == ERC20Token(address(0))
+            // block.chainid == TARGET_CHAIN_ID &&
+            wrappedTokenContracts[_token] != ERC20Token(address(0))
         ) {
-            ERC20Token ercToken = new ERC20Token(_name, _symbol, msg.sender);
-            wrappedTokenContracts[address(ercToken)] = ercToken;
-            createdWrappedTokens.push(address(ercToken));
-
-            emit DeployToken(_token, address(ercToken));
+            revert("Contract has an already deployed wrapper");
         }
+        ERC20Token ercToken = new ERC20Token(_name, _symbol, address(this));
+        wrappedTokenContracts[_token] = ercToken;
+        createdWrappedTokens.push(address(ercToken));
+
+        emit DeployToken(_token, address(ercToken));
     }
 
     // Optional - Brigde will have to pay fees and for txs to update mapping
@@ -95,13 +97,27 @@ contract Bridge is IBridge, Ownable {
             wrappedTokenContracts[_token] != ERC20Token(address(0)),
             "Register the token before bridging it"
         );
-        require(_amount > 0, "Bridged amount is required.");
+        require(_amount > 0, "Bridged amount is required");
         require(msg.value >= SERVICE_FEE, "Not enough service fee");
-        require(
-            block.chainid == SOURCE_CHAIN_ID,
-            "Can lock token only on source chain"
-        );
-        // ERC20(_token).permit(); // Add permit functionality
+        // require(
+        //     block.chainid == SOURCE_CHAIN_ID,
+        //     "Can only lock token on source chain"
+        // );
+
+        // uint8 v;
+        // bytes32 r;
+        // bytes32 s;
+        // (v, r, s) = splitSignature(_signature);
+
+        // IERC20Permit(_token).permit(
+        //     msg.sender,
+        //     address(this),
+        //     _amount,
+        //     block.timestamp + 3600 /* 1 hour */,
+        //     v,
+        //     r,
+        //     s
+        // );
         IERC20(_token).transferFrom(msg.sender, address(this), _amount);
         emit LockToken(_token, msg.sender, block.chainid, _amount, _signature);
     }
@@ -117,10 +133,10 @@ contract Bridge is IBridge, Ownable {
 
     function burn(address _token, uint256 _amount, uint _nonce) external {
         // Burn can be called only for the wrapped tokens on Mumbai
-        require(
-            block.chainid == TARGET_CHAIN_ID,
-            "Can only burn wrapped tokens on target chain"
-        );
+        // require(
+        //     block.chainid == TARGET_CHAIN_ID,
+        //     "Can only burn wrapped tokens on target chain"
+        // );
         require(
             processedNonces[msg.sender][_nonce] == false,
             "transfer already processed"
@@ -146,10 +162,10 @@ contract Bridge is IBridge, Ownable {
         uint _nonce,
         bytes calldata _signature
     ) external {
-        require(
-            block.chainid == TARGET_CHAIN_ID,
-            "Can only claim wrapped tokens on target chain"
-        );
+        // require(
+        //     block.chainid == TARGET_CHAIN_ID,
+        //     "Can only claim wrapped tokens on target chain"
+        // );
         require(
             processedNonces[_from][_nonce] == false,
             "transfer already processed"
@@ -160,11 +176,12 @@ contract Bridge is IBridge, Ownable {
         );
         require(recoverSigner(message, _signature) == _from, "wrong signature");
         processedNonces[_from][_nonce] = true;
-        IERC20Token(_token).mint(_to, _amount);
+        ERC20Token(_token).mint(_to, _amount);
         emit ClaimToken(
             _token,
             _from,
             _to,
+            block.chainid,
             _amount,
             block.timestamp,
             _nonce,
