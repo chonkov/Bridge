@@ -8,9 +8,6 @@ describe("ERC20Token", function () {
   async function deployERC20Token() {
     const [signer, ...other] = await ethers.getSigners();
 
-    const token = await ethers.deployContract("ERC20", ["Token", "TKN"]);
-    await token.waitForDeployment();
-
     const myToken = await ethers.deployContract("ERC20Token", [
       "MyToken",
       "MTKN",
@@ -18,7 +15,7 @@ describe("ERC20Token", function () {
     ]);
     await myToken.waitForDeployment();
 
-    return { token, myToken, signer, other };
+    return { myToken, signer, other };
   }
 
   describe("Deployment", function () {
