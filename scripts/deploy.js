@@ -1,32 +1,86 @@
-// We require the Hardhat Runtime Environment explicitly here. This is optional
-// but useful for running the script in a standalone fashion through `node <script>`.
-//
-// You can also run a script with `npx hardhat run <script>`. If you do that, Hardhat
-// will compile your contracts, add the Hardhat Runtime Environment's members to the
-// global scope, and execute the script.
-const hre = require("hardhat");
+const { ethers } = require("hardhat");
+const { getPermitSignature } = require("../utils/getPermitSignature");
+
+console.log("______________________________");
 
 async function main() {
-  const currentTimestampInSeconds = Math.round(Date.now() / 1000);
-  const unlockTime = currentTimestampInSeconds + 60;
+  const [signer, ...other] = await ethers.getSigners();
 
-  const lockedAmount = hre.ethers.parseEther("0.001");
+  const permitToken = await ethers.deployContract("ERC20PermitToken", [
+    "USD Coin",
+    "USDC",
+  ]);
+  await permitToken.waitForDeployment();
 
-  const lock = await hre.ethers.deployContract("Lock", [unlockTime], {
-    value: lockedAmount,
-  });
+  const name = await permitToken.name();
+  const symbol = await permitToken.symbol();
+  const wName = "Wrapped " + name;
+  const wSymbol = "W" + symbol;
+  const amount = ethers.parseEther("1");
+  const fee = ethers.parseEther("0.01");
+  const nonce = 0;
 
-  await lock.waitForDeployment();
+  await permitToken.mint(signer.address, amount);
+  await permitToken.connect(signer).mint(other[0].address, amount);
 
+  console.log(`✅ ERC20PermitToken deployed to ${permitToken.target}`);
+
+  const bridge = await ethers.deployContract("Bridge");
+  await bridge.waitForDeployment();
+
+  console.log(`✅ Bridge deployed to ${bridge.target}`);
+
+  await bridge.registerToken(permitToken.target);
+  console.log(`✅ Token(${permitToken.target}) successfully registered`);
+  await bridge.deployWrappedToken(permitToken.target, wName, wSymbol);
   console.log(
-    `Lock with ${ethers.formatEther(
-      lockedAmount
-    )}ETH and unlock timestamp ${unlockTime} deployed to ${lock.target}`
+    `✅ Wrapper of Token(${permitToken.target}) successfully deployed`
   );
+
+  const Wrapper = await ethers.getContractFactory("ERC20Token");
+  const wrapper = Wrapper.attach(await bridge.createdWrappedTokens(0));
+
+  const blockTimestamp = (await ethers.provider.getBlock("latest")).timestamp;
+  const deadline = blockTimestamp + 3600;
+
+  const bytes = ethers.solidityPacked(
+    ["address", "address", "uint256", "uint256", "uint256"],
+    [signer.address, signer.address, amount, deadline, nonce]
+  );
+  const hash = ethers.keccak256(bytes);
+  const sig = await signer.signMessage(ethers.toBeArray(hash));
+
+  const signature = await getPermitSignature(
+    signer,
+    permitToken,
+    bridge.target,
+    amount,
+    deadline
+  );
+
+  await bridge.lockToken(permitToken.target, amount, deadline, signature, {
+    value: fee,
+  });
+  console.log(`✅ Tokens are locked`);
+  await bridge.approveAmount(signer.address, amount);
+  console.log(`✅ Wrapped tokens can be claimed`);
+
+  await bridge.claim(
+    wrapper.target,
+    signer.address,
+    signer.address,
+    amount,
+    deadline,
+    nonce,
+    sig
+  );
+  console.log(`✅ Wrapped token are claimed`);
+  await bridge.burn(wrapper.target, amount, nonce + 1);
+  console.log(`✅ Wrapped token are burnt`);
+  await bridge.release(permitToken.target, signer.address, amount);
+  console.log(`✅ Tokens are released back to owner`);
 }
 
-// We recommend this pattern to be able to use async/await everywhere
-// and properly handle errors.
 main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
