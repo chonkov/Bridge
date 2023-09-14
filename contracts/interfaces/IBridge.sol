@@ -13,6 +13,7 @@ interface IBridge {
     function lockToken(
         address _token,
         uint256 _amount,
+        uint256 deadline,
         bytes calldata _signature
     ) external payable;
 
@@ -25,6 +26,7 @@ interface IBridge {
         address from,
         address to,
         uint amount,
+        uint deadline,
         uint nonce,
         bytes calldata signature
     ) external;

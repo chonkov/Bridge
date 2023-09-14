@@ -14,6 +14,7 @@ contract Bridge is IBridge, Ownable {
     mapping(address => mapping(uint => bool)) public processedNonces;
     mapping(address => ERC20Token) public wrappedTokenContracts;
     address[] public createdWrappedTokens;
+    mapping(address => uint) public approvedAmount;
 
     event RegisterToken(
         address indexed token,
@@ -37,7 +38,8 @@ contract Bridge is IBridge, Ownable {
         address token,
         address from,
         uint256 chainId,
-        uint amount,
+        uint256 amount,
+        uint256 deadline,
         bytes signature
     );
 
@@ -48,6 +50,7 @@ contract Bridge is IBridge, Ownable {
         uint chainId,
         uint amount,
         uint date,
+        uint deadline,
         uint nonce,
         bytes signature
     );
@@ -83,6 +86,10 @@ contract Bridge is IBridge, Ownable {
         emit DeployToken(_token, address(ercToken));
     }
 
+    function approveAmount(address addr, uint amount) external onlyOwner {
+        approvedAmount[addr] = amount;
+    }
+
     // Optional - Brigde will have to pay fees and for txs to update mapping
     // function update(address sourceAddr, address targetAddr) external onlyOwner {
     //     wrappedTokenContracts[sourceAddr] = ERC20Token(targetAddr);
@@ -91,6 +98,7 @@ contract Bridge is IBridge, Ownable {
     function lockToken(
         address _token,
         uint256 _amount,
+        uint256 _deadline,
         bytes calldata _signature
     ) external payable {
         require(
@@ -104,22 +112,29 @@ contract Bridge is IBridge, Ownable {
         //     "Can only lock token on source chain"
         // );
 
-        // uint8 v;
-        // bytes32 r;
-        // bytes32 s;
-        // (v, r, s) = splitSignature(_signature);
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+        (v, r, s) = splitSignature(_signature);
 
-        // IERC20Permit(_token).permit(
-        //     msg.sender,
-        //     address(this),
-        //     _amount,
-        //     block.timestamp + 3600 /* 1 hour */,
-        //     v,
-        //     r,
-        //     s
-        // );
+        IERC20Permit(_token).permit(
+            msg.sender,
+            address(this),
+            _amount,
+            _deadline,
+            v,
+            r,
+            s
+        );
         IERC20(_token).transferFrom(msg.sender, address(this), _amount);
-        emit LockToken(_token, msg.sender, block.chainid, _amount, _signature);
+        emit LockToken(
+            _token,
+            msg.sender,
+            block.chainid,
+            _amount,
+            _deadline,
+            _signature
+        );
     }
 
     function release(
@@ -156,9 +171,10 @@ contract Bridge is IBridge, Ownable {
 
     function claim(
         address _token,
-        address _from,
+        address _from, // if we leave it as a param input someone else could potentially claim the tokens for them
         address _to,
         uint _amount,
+        uint _deadline,
         uint _nonce,
         bytes calldata _signature
     ) external {
@@ -172,9 +188,15 @@ contract Bridge is IBridge, Ownable {
         );
 
         bytes32 message = prefixed(
-            keccak256(abi.encodePacked(_from, _to, _amount, _nonce))
+            keccak256(abi.encodePacked(_from, _to, _amount, _deadline, _nonce))
         );
         require(recoverSigner(message, _signature) == _from, "wrong signature");
+        require(
+            approvedAmount[_from] >= _amount,
+            "can't claim more than locked amount"
+        );
+
+        approvedAmount[_from] -= _amount;
         processedNonces[_from][_nonce] = true;
         ERC20Token(_token).mint(_to, _amount);
         emit ClaimToken(
@@ -184,6 +206,7 @@ contract Bridge is IBridge, Ownable {
             block.chainid,
             _amount,
             block.timestamp,
+            _deadline,
             _nonce,
             _signature
         );
