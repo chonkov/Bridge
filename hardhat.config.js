@@ -74,10 +74,6 @@ task("signature", "Returns a signature based on the passed inputs")
     );
     const hash = hre.ethers.keccak256(bytes);
     const sig = await signer.signMessage(hre.ethers.toBeArray(hash));
-
-    // 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-    // 1000000000000000000
-    // 2000000000
     console.log(`✅ Computed signature: ${sig}`);
   });
 
@@ -126,11 +122,6 @@ task("lock", "Locks an amount of tokens into a bridge using permit signatures")
     const deadline = taskArgs["deadline"];
     const signature = taskArgs["signature"];
 
-    // 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
-    // 0x5FbDB2315678afecb367f032d93F642f64180aa3
-    // 1000000000000000000
-    // 2000000000
-    // 0x3bd95cb7f57af26069f24e7cc2718f609740b504090e07800fb27b43c7a7ee0242be467145f28c55a4b30e4729e726b2d53dea4fba82a83d4e076c333bfc76581c
     await bridge.lockToken(token, amount, deadline, signature, {
       value: fee,
     });
@@ -147,10 +138,6 @@ task("approve", "Approves a user to claim a certain amount of wrapped tokens")
     const bridge = Bridge.attach(taskArgs["bridge"]);
     const amount = taskArgs["amount"];
 
-    // 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
-    // 0x5FbDB2315678afecb367f032d93F642f64180aa3
-    // 1000000000000000000
-    // 2000000000
     await bridge.approveAmount(claimer, amount);
     console.log(`✅ Wrapped tokens can be claimed`);
   });
@@ -178,13 +165,41 @@ task(
     const deadline = taskArgs["deadline"];
     const signature = taskArgs["signature"];
 
-    // 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
-    // 0x5FbDB2315678afecb367f032d93F642f64180aa3
-    // 1000000000000000000
-    // 2000000000
-    // 0x06f5ff5d1e43c3819a4c514c5b17952492ada84966200f085d204487e19469b75f014496bd081a622518c22177028d8bc6972d0335d1b96d5b571d3448339a481b
     await bridge.claim(token, from, to, amount, deadline, nonce, signature);
     console.log(`✅ Wrapped token are claimed`);
+  });
+
+task("burn", "Allows users to burn their wrapped tokens")
+  .addParam("bridge")
+  .addParam("token")
+  .addParam("amount")
+  .addParam("nonce")
+  .setAction(async (taskArgs, hre) => {
+    const Bridge = await hre.ethers.getContractFactory("Bridge");
+    const bridge = Bridge.attach(taskArgs["bridge"]);
+    const token = await bridge.createdWrappedTokens(taskArgs["token"]);
+    const amount = taskArgs["amount"];
+    const nonce = taskArgs["nonce"];
+
+    await bridge.burn(token, amount, nonce);
+    console.log(`✅ Wrapped token are burnt`);
+  });
+
+task("release", "Returns the initial locked amount to the user")
+  .addParam("to")
+  .addParam("bridge")
+  .addParam("token")
+  .addParam("amount")
+  .setAction(async (taskArgs, hre) => {
+    const signer = await hre.ethers.getSigner(taskArgs["to"]);
+    const Bridge = await hre.ethers.getContractFactory("Bridge");
+    const bridge = Bridge.attach(taskArgs["bridge"]);
+    const Permit = await hre.ethers.getContractFactory("ERC20PermitToken");
+    const permit = await Permit.attach(taskArgs["token"]);
+    const amount = taskArgs["amount"];
+
+    await bridge.release(permit.target, signer.address, amount);
+    console.log(`✅ Tokens are released back to owner`);
   });
 
 /** @type import('hardhat/config').HardhatUserConfig */
