@@ -1,5 +1,6 @@
 require("@nomicfoundation/hardhat-toolbox");
 require("dotenv").config();
+const { getPermitSignature } = require("./utils/getPermitSignature");
 
 const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL || "";
 const MUMBAI_RPC_URL = process.env.MUMBAI_RPC_URL || "";
@@ -15,10 +16,10 @@ task(
     const tokenAddr = taskArgs["token"];
     const bridgeAddr = taskArgs["bridge"];
 
-    const PermitToken = await ethers.getContractFactory("ERC20PermitToken");
+    const PermitToken = await hre.ethers.getContractFactory("ERC20PermitToken");
     const permitToken = PermitToken.attach(tokenAddr);
 
-    const Bridge = await ethers.getContractFactory("Bridge");
+    const Bridge = await hre.ethers.getContractFactory("Bridge");
     const bridge = Bridge.attach(bridgeAddr);
 
     await bridge.registerToken(permitToken.target);
@@ -31,26 +32,159 @@ task("deploy", "Deploys a wrapper of an already registered token")
   .addParam("name")
   .addParam("symbol")
   .setAction(async (taskArgs, hre) => {
-    // permitToken.target, wName, wSymbol;
     const tokenAddr = taskArgs["token"];
     const bridgeAddr = taskArgs["bridge"];
     const name = taskArgs["name"];
     const symbol = taskArgs["symbol"];
 
-    const PermitToken = await ethers.getContractFactory("ERC20PermitToken");
+    const PermitToken = await hre.ethers.getContractFactory("ERC20PermitToken");
     const permitToken = PermitToken.attach(tokenAddr);
 
-    const Bridge = await ethers.getContractFactory("Bridge");
+    const Bridge = await hre.ethers.getContractFactory("Bridge");
     const bridge = Bridge.attach(bridgeAddr);
 
     await bridge.deployWrappedToken(permitToken.target, name, symbol);
-    const Wrapper = await ethers.getContractFactory("ERC20Token");
-    const wrapper = Wrapper.attach(await bridge.createdWrappedTokens(0));
+    const Wrapper = await hre.ethers.getContractFactory("ERC20Token");
+    const wrapperAddr = await bridge.createdWrappedTokens(0);
+    const wrapper = Wrapper.attach(wrapperAddr);
     console.log(
       `✅ Wrapper of Token(${permitToken.target}) successfully deployed to: ${
         wrapper.target
       } with name: ${await wrapper.name()} and symbol: ${await wrapper.symbol()}`
     );
+  });
+
+task("signature", "Returns a signature based on the passed inputs")
+  .addParam("from")
+  .addParam("to")
+  .addParam("amount")
+  .addParam("deadline")
+  .addParam("nonce")
+  .setAction(async (taskArgs, hre) => {
+    const [signer] = await hre.ethers.getSigners(1);
+    const from = taskArgs["from"];
+    const to = taskArgs["to"];
+    const amount = taskArgs["amount"];
+    const deadline = taskArgs["deadline"];
+    const nonce = taskArgs["nonce"];
+
+    const bytes = hre.ethers.solidityPacked(
+      ["address", "address", "uint256", "uint256", "uint256"],
+      [from, to, amount, deadline, nonce]
+    );
+    const hash = hre.ethers.keccak256(bytes);
+    const sig = await signer.signMessage(hre.ethers.toBeArray(hash));
+
+    // 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+    // 1000000000000000000
+    // 2000000000
+    console.log(`✅ Computed signature: ${sig}`);
+  });
+
+task(
+  "permit-signature",
+  "Returns a signature compatible with EIP-712 based on the passed inputs"
+)
+  .addParam("from")
+  .addParam("to")
+  .addParam("token")
+  .addParam("amount")
+  .addParam("deadline")
+  .setAction(async (taskArgs, hre) => {
+    const from = taskArgs["from"];
+    const signer = await hre.ethers.getSigner(from);
+    const to = taskArgs["to"];
+    const token = taskArgs["token"];
+    const amount = taskArgs["amount"];
+    const deadline = taskArgs["deadline"];
+    const Permit = await hre.ethers.getContractFactory("ERC20PermitToken");
+    const permit = Permit.attach(token);
+
+    const signature = await getPermitSignature(
+      signer,
+      permit,
+      to,
+      amount,
+      deadline
+    );
+    console.log(`✅ Computed permit-signature: ${signature}`);
+  });
+
+task("lock", "Locks an amount of tokens into a bridge using permit signatures")
+  .addParam("bridge")
+  .addParam("token")
+  .addParam("amount")
+  .addParam("deadline")
+  .addParam("fee")
+  .addParam("signature")
+  .setAction(async (taskArgs, hre) => {
+    const Bridge = await hre.ethers.getContractFactory("Bridge");
+    const bridge = Bridge.attach(taskArgs["bridge"]);
+    const token = taskArgs["token"];
+    const amount = taskArgs["amount"];
+    const fee = taskArgs["fee"];
+    const deadline = taskArgs["deadline"];
+    const signature = taskArgs["signature"];
+
+    // 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+    // 0x5FbDB2315678afecb367f032d93F642f64180aa3
+    // 1000000000000000000
+    // 2000000000
+    // 0x3bd95cb7f57af26069f24e7cc2718f609740b504090e07800fb27b43c7a7ee0242be467145f28c55a4b30e4729e726b2d53dea4fba82a83d4e076c333bfc76581c
+    await bridge.lockToken(token, amount, deadline, signature, {
+      value: fee,
+    });
+    console.log(`✅ Tokens are locked`);
+  });
+
+task("approve", "Approves a user to claim a certain amount of wrapped tokens")
+  .addParam("claimer")
+  .addParam("bridge")
+  .addParam("amount")
+  .setAction(async (taskArgs, hre) => {
+    const claimer = taskArgs["claimer"];
+    const Bridge = await hre.ethers.getContractFactory("Bridge");
+    const bridge = Bridge.attach(taskArgs["bridge"]);
+    const amount = taskArgs["amount"];
+
+    // 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+    // 0x5FbDB2315678afecb367f032d93F642f64180aa3
+    // 1000000000000000000
+    // 2000000000
+    await bridge.approveAmount(claimer, amount);
+    console.log(`✅ Wrapped tokens can be claimed`);
+  });
+
+task(
+  "claim",
+  "Allows users to claim their wrapped tokens using singatures for verification"
+)
+  .addParam("from")
+  .addParam("to")
+  .addParam("bridge")
+  .addParam("token")
+  .addParam("amount")
+  .addParam("deadline")
+  .addParam("nonce")
+  .addParam("signature")
+  .setAction(async (taskArgs, hre) => {
+    const from = taskArgs["from"];
+    const to = taskArgs["to"];
+    const Bridge = await hre.ethers.getContractFactory("Bridge");
+    const bridge = Bridge.attach(taskArgs["bridge"]);
+    const token = await bridge.createdWrappedTokens(taskArgs["token"]);
+    const amount = taskArgs["amount"];
+    const nonce = taskArgs["nonce"];
+    const deadline = taskArgs["deadline"];
+    const signature = taskArgs["signature"];
+
+    // 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+    // 0x5FbDB2315678afecb367f032d93F642f64180aa3
+    // 1000000000000000000
+    // 2000000000
+    // 0x06f5ff5d1e43c3819a4c514c5b17952492ada84966200f085d204487e19469b75f014496bd081a622518c22177028d8bc6972d0335d1b96d5b571d3448339a481b
+    await bridge.claim(token, from, to, amount, deadline, nonce, signature);
+    console.log(`✅ Wrapped token are claimed`);
   });
 
 /** @type import('hardhat/config').HardhatUserConfig */
