@@ -8,6 +8,7 @@ const { getPermitSignature } = require("../utils/getPermitSignature");
 describe("Bridge", function () {
   const name = "USD Coin";
   const symbol = "USDC";
+  const amount = ethers.parseEther("1");
 
   async function deployERC20() {
     const [signer, ...other] = await ethers.getSigners();
@@ -18,6 +19,7 @@ describe("Bridge", function () {
       //   signer.address,
     ]);
     await usdc.waitForDeployment();
+    await usdc.mint(signer.address, amount);
 
     return { usdc, signer, other };
   }
@@ -41,8 +43,6 @@ describe("Bridge", function () {
     const { usdc } = await loadFixture(deployERC20);
     const { deadline } = await loadFixture(computeDeadline);
     const [signer] = await ethers.getSigners();
-
-    const amount = ethers.parseEther("1");
 
     const signature = await getPermitSignature(
       signer,
@@ -98,10 +98,16 @@ describe("Bridge", function () {
         .not.be.reverted;
 
       expect(await bridge.createdWrappedTokens(0)).to.not.be.reverted;
-      const wrappedToken = await bridge.createdWrappedTokens(0);
+
+      const Usdc = await ethers.getContractFactory("ERC20PermitToken");
+      const usdcWrapper = Usdc.attach(await bridge.createdWrappedTokens(0));
+
       expect(await bridge.wrappedTokenContracts(usdc.target)).to.equal(
-        wrappedToken
+        usdcWrapper.target
       );
+      expect(await usdcWrapper.owner()).to.equal(bridge.target);
+      expect(await usdcWrapper.name()).to.equal(wName);
+      expect(await usdcWrapper.symbol()).to.equal(wSymbol);
     });
 
     it("Should emit an event", async function () {
@@ -136,22 +142,14 @@ describe("Bridge", function () {
   describe("Token Locking", function () {
     const wName = "Wrapped " + name;
     const wSymbol = "W" + symbol;
-    const amount = ethers.parseEther("1");
+    // const amount = ethers.parseEther("1");
     it("Should not revert and lock tokens", async function () {
       const { bridge } = await loadFixture(deployBridge);
       const { usdc, signer } = await loadFixture(deployERC20);
       const { deadline } = await loadFixture(computeDeadline);
       const { signature } = await loadFixture(computePermitSignature);
 
-      const Usdc = await ethers.getContractFactory("ERC20PermitToken");
-
-      await usdc.mint(signer.address, amount);
       await bridge.deployWrappedToken(usdc.target, wName, wSymbol);
-      const usdcWrapper = Usdc.attach(await bridge.createdWrappedTokens(0));
-
-      expect(await usdcWrapper.owner()).to.equal(bridge.target);
-      expect(await usdcWrapper.name()).to.equal(wName);
-      expect(await usdcWrapper.symbol()).to.equal(wSymbol);
 
       expect(await usdc.balanceOf(signer.address)).to.equal(amount);
       expect(await usdc.balanceOf(bridge.target)).to.equal(0);
@@ -173,7 +171,6 @@ describe("Bridge", function () {
       const { deadline } = await loadFixture(computeDeadline);
       const { signature } = await loadFixture(computePermitSignature);
 
-      await usdc.mint(signer.address, amount);
       await bridge.deployWrappedToken(usdc.target, wName, wSymbol);
 
       expect(
@@ -194,11 +191,10 @@ describe("Bridge", function () {
 
     it("Should throw an error if no wrapped is deployed", async function () {
       const { bridge } = await loadFixture(deployBridge);
-      const { usdc, signer } = await loadFixture(deployERC20);
+      const { usdc } = await loadFixture(deployERC20);
       const { deadline } = await loadFixture(computeDeadline);
       const { signature } = await loadFixture(computePermitSignature);
 
-      await usdc.mint(signer.address, amount);
       await expect(
         bridge.lockToken(usdc.target, amount, deadline, signature, {
           value: amount,
@@ -208,11 +204,10 @@ describe("Bridge", function () {
 
     it("Should throw an error when bridged tokens are zero", async function () {
       const { bridge } = await loadFixture(deployBridge);
-      const { usdc, signer } = await loadFixture(deployERC20);
+      const { usdc } = await loadFixture(deployERC20);
       const { deadline } = await loadFixture(computeDeadline);
       const { signature } = await loadFixture(computePermitSignature);
 
-      await usdc.mint(signer.address, amount);
       await bridge.deployWrappedToken(usdc.target, wName, wSymbol);
 
       await expect(
@@ -222,11 +217,10 @@ describe("Bridge", function () {
 
     it("Should throw an error when sent value is less than fee", async function () {
       const { bridge } = await loadFixture(deployBridge);
-      const { usdc, signer } = await loadFixture(deployERC20);
+      const { usdc } = await loadFixture(deployERC20);
       const { deadline } = await loadFixture(computeDeadline);
       const { signature } = await loadFixture(computePermitSignature);
 
-      await usdc.mint(signer.address, amount);
       await bridge.deployWrappedToken(usdc.target, wName, wSymbol);
 
       await expect(
@@ -236,20 +230,9 @@ describe("Bridge", function () {
   });
 
   describe("Approve Address with Amount", function () {
-    const wName = "Wrapped " + name;
-    const wSymbol = "W" + symbol;
-    const amount = ethers.parseEther("1");
     it("Should approve an address to claim a certain amount of tokens", async function () {
       const { bridge } = await loadFixture(deployBridge);
-      const { usdc, signer } = await loadFixture(deployERC20);
-      const { deadline } = await loadFixture(computeDeadline);
-      const { signature } = await loadFixture(computePermitSignature);
-
-      await usdc.mint(signer.address, amount);
-      await bridge.deployWrappedToken(usdc.target, wName, wSymbol);
-      await bridge.lockToken(usdc.target, amount, deadline, signature, {
-        value: amount,
-      });
+      const { signer } = await loadFixture(deployERC20);
 
       expect(await bridge.approveAmount(signer.address, amount)).not.to.be
         .reverted;
@@ -257,15 +240,7 @@ describe("Bridge", function () {
 
     it("Should emit an event", async function () {
       const { bridge } = await loadFixture(deployBridge);
-      const { usdc, signer } = await loadFixture(deployERC20);
-      const { deadline } = await loadFixture(computeDeadline);
-      const { signature } = await loadFixture(computePermitSignature);
-
-      await usdc.mint(signer.address, amount);
-      await bridge.deployWrappedToken(usdc.target, wName, wSymbol);
-      await bridge.lockToken(usdc.target, amount, deadline, signature, {
-        value: amount,
-      });
+      const { signer } = await loadFixture(deployERC20);
 
       expect(await bridge.approveAmount(signer.address, amount))
         .to.emit("ApproveAmount")
@@ -274,15 +249,7 @@ describe("Bridge", function () {
 
     it("Should revert, if not called by the owner", async function () {
       const { bridge } = await loadFixture(deployBridge);
-      const { usdc, signer, other } = await loadFixture(deployERC20);
-      const { deadline } = await loadFixture(computeDeadline);
-      const { signature } = await loadFixture(computePermitSignature);
-
-      await usdc.mint(signer.address, amount);
-      await bridge.deployWrappedToken(usdc.target, wName, wSymbol);
-      await bridge.lockToken(usdc.target, amount, deadline, signature, {
-        value: amount,
-      });
+      const { signer, other } = await loadFixture(deployERC20);
 
       await expect(
         bridge.connect(other[0]).approveAmount(signer.address, amount)
@@ -293,7 +260,6 @@ describe("Bridge", function () {
   describe("Token Claiming", function () {
     const wName = "Wrapped " + name;
     const wSymbol = "W" + symbol;
-    const amount = ethers.parseEther("1");
     const nonce = 0;
 
     it("Should allow users that have locked tokens to claim the wrapped equivalent", async function () {
@@ -310,7 +276,6 @@ describe("Bridge", function () {
       const hash = ethers.keccak256(bytes);
       const sig = await signer.signMessage(ethers.toBeArray(hash));
 
-      await usdc.mint(signer.address, amount);
       await bridge.deployWrappedToken(usdc.target, wName, wSymbol);
       await bridge.lockToken(usdc.target, amount, deadline, signature, {
         value: amount,
@@ -355,7 +320,6 @@ describe("Bridge", function () {
       const hash = ethers.keccak256(bytes);
       const sig = await signer.signMessage(ethers.toBeArray(hash));
 
-      await usdc.mint(signer.address, amount);
       await bridge.deployWrappedToken(usdc.target, wName, wSymbol);
       await bridge.lockToken(usdc.target, amount, deadline, signature, {
         value: amount,
@@ -388,6 +352,43 @@ describe("Bridge", function () {
         ]);
     });
 
+    it("Should not revert if an EOA sends a valid signature", async function () {
+      const { bridge } = await loadFixture(deployBridge);
+      const { usdc, signer, other } = await loadFixture(deployERC20);
+      const { deadline } = await loadFixture(computeDeadline);
+      const { signature } = await loadFixture(computePermitSignature);
+      const Usdc = await ethers.getContractFactory("ERC20Token");
+
+      const bytes = ethers.solidityPacked(
+        ["address", "address", "uint256", "uint256", "uint256"],
+        [signer.address, signer.address, amount, deadline, nonce]
+      );
+      const hash = ethers.keccak256(bytes);
+      const sig = await signer.signMessage(ethers.toBeArray(hash));
+      // const invalidSig = await other[0].signMessage(ethers.toBeArray(hash));
+
+      await bridge.deployWrappedToken(usdc.target, wName, wSymbol);
+      await bridge.lockToken(usdc.target, amount, deadline, signature, {
+        value: amount,
+      });
+      const usdcWrapper = Usdc.attach(await bridge.createdWrappedTokens(0));
+
+      await bridge.approveAmount(signer.address, amount);
+      await expect(
+        bridge
+          .connect(other[0])
+          .claim(
+            usdcWrapper.target,
+            signer.address,
+            signer.address,
+            amount,
+            deadline,
+            nonce,
+            sig
+          )
+      ).not.to.be.reverted;
+    });
+
     it("Should revert, if nonce has been processed", async function () {
       const { bridge } = await loadFixture(deployBridge);
       const { usdc, signer } = await loadFixture(deployERC20);
@@ -402,7 +403,6 @@ describe("Bridge", function () {
       const hash = ethers.keccak256(bytes);
       const sig = await signer.signMessage(ethers.toBeArray(hash));
 
-      await usdc.mint(signer.address, amount);
       await bridge.deployWrappedToken(usdc.target, wName, wSymbol);
       await bridge.lockToken(usdc.target, amount, deadline, signature, {
         value: amount,
@@ -447,7 +447,6 @@ describe("Bridge", function () {
       const hash = ethers.keccak256(bytes);
       const sig = await signer.signMessage(ethers.toBeArray(hash));
 
-      await usdc.mint(signer.address, amount);
       await bridge.deployWrappedToken(usdc.target, wName, wSymbol);
       await bridge.lockToken(usdc.target, amount, deadline, signature, {
         value: amount,
@@ -493,7 +492,6 @@ describe("Bridge", function () {
       const hash = ethers.keccak256(bytes);
       const sig = await signer.signMessage(ethers.toBeArray(hash));
 
-      await usdc.mint(signer.address, amount);
       await bridge.deployWrappedToken(usdc.target, wName, wSymbol);
       await bridge.lockToken(usdc.target, amount, deadline, signature, {
         value: amount,
@@ -529,7 +527,6 @@ describe("Bridge", function () {
       const hash = ethers.keccak256(bytes);
       const sig = (await signer.signMessage(ethers.toBeArray(hash))) + "1c";
 
-      await usdc.mint(signer.address, amount);
       await bridge.deployWrappedToken(usdc.target, wName, wSymbol);
       await bridge.lockToken(usdc.target, amount, deadline, signature, {
         value: amount,
@@ -554,7 +551,6 @@ describe("Bridge", function () {
   describe("Token Burning", function () {
     const wName = "Wrapped " + name;
     const wSymbol = "W" + symbol;
-    const amount = ethers.parseEther("1");
     const nonce = 0;
 
     it("Should allow users to burn their wrapped tokens", async function () {
@@ -571,7 +567,6 @@ describe("Bridge", function () {
       const hash = ethers.keccak256(bytes);
       const sig = await signer.signMessage(ethers.toBeArray(hash));
 
-      await usdc.mint(signer.address, amount);
       await bridge.deployWrappedToken(usdc.target, wName, wSymbol);
       await bridge.lockToken(usdc.target, amount, deadline, signature, {
         value: amount,
@@ -612,7 +607,6 @@ describe("Bridge", function () {
       const hash = ethers.keccak256(bytes);
       const sig = await signer.signMessage(ethers.toBeArray(hash));
 
-      await usdc.mint(signer.address, amount);
       await bridge.deployWrappedToken(usdc.target, wName, wSymbol);
       await bridge.lockToken(usdc.target, amount, deadline, signature, {
         value: amount,
@@ -659,7 +653,6 @@ describe("Bridge", function () {
       const hash = ethers.keccak256(bytes);
       const sig = await signer.signMessage(ethers.toBeArray(hash));
 
-      await usdc.mint(signer.address, amount);
       await bridge.deployWrappedToken(usdc.target, wName, wSymbol);
       await bridge.lockToken(usdc.target, amount, deadline, signature, {
         value: amount,
@@ -686,7 +679,6 @@ describe("Bridge", function () {
   describe("Token Releasing", function () {
     const wName = "Wrapped " + name;
     const wSymbol = "W" + symbol;
-    const amount = ethers.parseEther("1");
     const nonce = 0;
 
     it("Should return the originally locked tokens to the user", async function () {
@@ -703,7 +695,6 @@ describe("Bridge", function () {
       const hash = ethers.keccak256(bytes);
       const sig = await signer.signMessage(ethers.toBeArray(hash));
 
-      await usdc.mint(signer.address, amount);
       await bridge.deployWrappedToken(usdc.target, wName, wSymbol);
       await bridge.lockToken(usdc.target, amount, deadline, signature, {
         value: amount,
@@ -743,7 +734,6 @@ describe("Bridge", function () {
       const hash = ethers.keccak256(bytes);
       const sig = await signer.signMessage(ethers.toBeArray(hash));
 
-      await usdc.mint(signer.address, amount);
       await bridge.deployWrappedToken(usdc.target, wName, wSymbol);
       await bridge.lockToken(usdc.target, amount, deadline, signature, {
         value: amount,
@@ -781,7 +771,6 @@ describe("Bridge", function () {
       const hash = ethers.keccak256(bytes);
       const sig = await signer.signMessage(ethers.toBeArray(hash));
 
-      await usdc.mint(signer.address, amount);
       await bridge.deployWrappedToken(usdc.target, wName, wSymbol);
       await bridge.lockToken(usdc.target, amount, deadline, signature, {
         value: amount,
