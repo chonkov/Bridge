@@ -13,8 +13,9 @@ contract Bridge is IBridge, Ownable {
 
     mapping(address => mapping(uint => bool)) public processedNonces;
     mapping(address => ERC20Token) public wrappedTokenContracts;
+    mapping(address => bool) public registeredTokens;
     address[] public createdWrappedTokens;
-    mapping(address => uint) public approvedAmount;
+    // mapping(address => uint) public approvedAmount;
 
     event RegisterToken(
         address indexed token,
@@ -24,6 +25,8 @@ contract Bridge is IBridge, Ownable {
     );
 
     event DeployToken(address indexed source, address indexed wrapper);
+
+    event ApproveAmount(address indexed addr, uint indexed amount);
 
     event BurnToken(
         address token,
@@ -64,6 +67,8 @@ contract Bridge is IBridge, Ownable {
         string memory _name = ERC20Token(_token).name();
         string memory _symbol = ERC20Token(_token).symbol();
 
+        registeredTokens[_token] = true;
+
         emit RegisterToken(_token, _name, _symbol, msg.sender);
         // }
     }
@@ -81,14 +86,17 @@ contract Bridge is IBridge, Ownable {
         }
         ERC20Token ercToken = new ERC20Token(_name, _symbol, address(this));
         wrappedTokenContracts[_token] = ercToken;
+        registeredTokens[_token] = true;
         createdWrappedTokens.push(address(ercToken));
 
         emit DeployToken(_token, address(ercToken));
     }
 
-    function approveAmount(address addr, uint amount) external onlyOwner {
-        approvedAmount[addr] = amount;
-    }
+    // // Remove
+    // function approveAmount(address addr, uint amount) external onlyOwner {
+    //     approvedAmount[addr] = amount;
+    //     emit ApproveAmount(addr, amount);
+    // }
 
     // Optional - Brigde will have to pay fees and for txs to update mapping
     // function update(address sourceAddr, address targetAddr) external onlyOwner {
@@ -102,7 +110,7 @@ contract Bridge is IBridge, Ownable {
         bytes calldata _signature
     ) external payable {
         require(
-            wrappedTokenContracts[_token] != ERC20Token(address(0)),
+            registeredTokens[_token],
             "Register the token before bridging it"
         );
         require(_amount > 0, "Bridged amount is required");
@@ -171,7 +179,7 @@ contract Bridge is IBridge, Ownable {
 
     function claim(
         address _token,
-        address _from, // if we leave it as a param input someone else could potentially claim the tokens for them
+        address _from,
         address _to,
         uint _amount,
         uint _deadline,
@@ -190,13 +198,13 @@ contract Bridge is IBridge, Ownable {
         bytes32 message = prefixed(
             keccak256(abi.encodePacked(_from, _to, _amount, _deadline, _nonce))
         );
-        require(recoverSigner(message, _signature) == _from, "wrong signature");
-        require(
-            approvedAmount[_from] >= _amount,
-            "can't claim more than locked amount"
-        );
+        require(recoverSigner(message, _signature) == _from, "wrong signature"); // from == msg.sender
+        // require(
+        //     approvedAmount[_from] >= _amount,
+        //     "can't claim more than locked amount"
+        // );
 
-        approvedAmount[_from] -= _amount;
+        // approvedAmount[_from] -= _amount;
         processedNonces[_from][_nonce] = true;
         ERC20Token(_token).mint(_to, _amount);
         emit ClaimToken(
