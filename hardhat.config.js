@@ -22,7 +22,8 @@ task(
     const Bridge = await hre.ethers.getContractFactory("Bridge");
     const bridge = Bridge.attach(bridgeAddr);
 
-    await bridge.registerToken(permitToken.target);
+    const tx = await bridge.registerToken(permitToken.target);
+    await tx.wait();
     console.log(`✅ Token(${permitToken.target}) successfully registered`);
   });
 
@@ -37,18 +38,18 @@ task("deploy", "Deploys a wrapper of an already registered token")
     const name = taskArgs["name"];
     const symbol = taskArgs["symbol"];
 
-    const PermitToken = await hre.ethers.getContractFactory("ERC20PermitToken");
-    const permitToken = PermitToken.attach(tokenAddr);
+    // const PermitToken = await hre.ethers.getContractFactory("ERC20PermitToken");
+    // const permitToken = PermitToken.attach(tokenAddr);
 
     const Bridge = await hre.ethers.getContractFactory("Bridge");
     const bridge = Bridge.attach(bridgeAddr);
 
-    await bridge.deployWrappedToken(permitToken.target, name, symbol);
+    await bridge.deployWrappedToken(tokenAddr, name, symbol);
     const Wrapper = await hre.ethers.getContractFactory("ERC20Token");
     const wrapperAddr = await bridge.createdWrappedTokens(0);
     const wrapper = Wrapper.attach(wrapperAddr);
     console.log(
-      `✅ Wrapper of Token(${permitToken.target}) successfully deployed to: ${
+      `✅ Wrapper of Token(${tokenAddr}) successfully deployed to: ${
         wrapper.target
       } with name: ${await wrapper.name()} and symbol: ${await wrapper.symbol()}`
     );
@@ -202,6 +203,23 @@ task("release", "Returns the initial locked amount to the user")
     console.log(`✅ Tokens are released back to owner`);
   });
 
+// task("event-listener", "Starts an event listener")
+//   .addParam("to")
+//   .addParam("bridge")
+//   .addParam("token")
+//   .addParam("amount")
+//   .setAction(async (taskArgs, hre) => {
+//     const signer = await hre.ethers.getSigner(taskArgs["to"]);
+//     const Bridge = await hre.ethers.getContractFactory("Bridge");
+//     const bridge = Bridge.attach(taskArgs["bridge"]);
+//     const Permit = await hre.ethers.getContractFactory("ERC20PermitToken");
+//     const permit = await Permit.attach(taskArgs["token"]);
+//     const amount = taskArgs["amount"];
+
+//     await bridge.release(permit.target, signer.address, amount);
+//     console.log(`✅ Tokens are released back to owner`);
+//   });
+
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
   solidity: "0.8.19",
@@ -227,5 +245,8 @@ module.exports = {
       url: MUMBAI_RPC_URL,
       accounts: PRIVATE_KEY !== undefined ? [PRIVATE_KEY] : [],
     },
+  },
+  mocha: {
+    timeout: 100000,
   },
 };
