@@ -229,34 +229,6 @@ describe("Bridge", function () {
     });
   });
 
-  describe("Approve Address with Amount", function () {
-    it("Should approve an address to claim a certain amount of tokens", async function () {
-      const { bridge } = await loadFixture(deployBridge);
-      const { signer } = await loadFixture(deployERC20);
-
-      expect(await bridge.approveAmount(signer.address, amount)).not.to.be
-        .reverted;
-    });
-
-    it("Should emit an event", async function () {
-      const { bridge } = await loadFixture(deployBridge);
-      const { signer } = await loadFixture(deployERC20);
-
-      expect(await bridge.approveAmount(signer.address, amount))
-        .to.emit("ApproveAmount")
-        .withArgs([signer.address, amount]);
-    });
-
-    it("Should revert, if not called by the owner", async function () {
-      const { bridge } = await loadFixture(deployBridge);
-      const { signer, other } = await loadFixture(deployERC20);
-
-      await expect(
-        bridge.connect(other[0]).approveAmount(signer.address, amount)
-      ).to.be.revertedWith("Ownable: caller is not the owner");
-    });
-  });
-
   describe("Token Claiming", function () {
     const wName = "Wrapped " + name;
     const wSymbol = "W" + symbol;
@@ -285,8 +257,6 @@ describe("Bridge", function () {
       expect(await usdc.balanceOf(signer.address)).to.equal(0);
       expect(await usdc.balanceOf(bridge.target)).to.equal(amount);
       expect(await usdc.allowance(signer.address, bridge.target)).to.equal(0);
-
-      await bridge.approveAmount(signer.address, amount);
 
       expect(
         await bridge.claim(
@@ -325,8 +295,6 @@ describe("Bridge", function () {
         value: amount,
       });
       const usdcWrapper = Usdc.attach(await bridge.createdWrappedTokens(0));
-
-      await bridge.approveAmount(signer.address, amount);
 
       expect(
         await bridge.claim(
@@ -373,7 +341,6 @@ describe("Bridge", function () {
       });
       const usdcWrapper = Usdc.attach(await bridge.createdWrappedTokens(0));
 
-      await bridge.approveAmount(signer.address, amount);
       await expect(
         bridge
           .connect(other[0])
@@ -409,7 +376,6 @@ describe("Bridge", function () {
       });
       const usdcWrapper = Usdc.attach(await bridge.createdWrappedTokens(0));
 
-      await bridge.approveAmount(signer.address, amount);
       await bridge.claim(
         usdcWrapper.target,
         signer.address,
@@ -453,7 +419,6 @@ describe("Bridge", function () {
       });
       const usdcWrapper = Usdc.attach(await bridge.createdWrappedTokens(0));
 
-      await bridge.approveAmount(signer.address, amount);
       await bridge.claim(
         usdcWrapper.target,
         signer.address,
@@ -498,10 +463,8 @@ describe("Bridge", function () {
       });
       const usdcWrapper = Usdc.attach(await bridge.createdWrappedTokens(0));
 
-      await bridge.approveAmount(signer.address, amount);
-
-      await expect(
-        bridge.claim(
+      expect(
+        await bridge.claim(
           usdcWrapper.target,
           signer.address,
           signer.address,
@@ -510,7 +473,7 @@ describe("Bridge", function () {
           nonce,
           sig
         )
-      ).to.be.revertedWith("can't claim more than locked amount");
+      ).to.be.revertedWith("wrong signature");
     });
 
     it("Should revert, if signature has invalid length", async function () {
@@ -533,7 +496,6 @@ describe("Bridge", function () {
       });
       const usdcWrapper = Usdc.attach(await bridge.createdWrappedTokens(0));
 
-      await bridge.approveAmount(signer.address, amount);
       await expect(
         bridge.claim(
           usdcWrapper.target,
@@ -573,7 +535,6 @@ describe("Bridge", function () {
       });
       const usdcWrapper = Usdc.attach(await bridge.createdWrappedTokens(0));
 
-      await bridge.approveAmount(signer.address, amount);
       await bridge.claim(
         usdcWrapper.target,
         signer.address,
@@ -613,7 +574,6 @@ describe("Bridge", function () {
       });
       const usdcWrapper = Usdc.attach(await bridge.createdWrappedTokens(0));
 
-      await bridge.approveAmount(signer.address, amount);
       await bridge.claim(
         usdcWrapper.target,
         signer.address,
@@ -659,7 +619,6 @@ describe("Bridge", function () {
       });
       const usdcWrapper = Usdc.attach(await bridge.createdWrappedTokens(0));
 
-      await bridge.approveAmount(signer.address, amount);
       await bridge.claim(
         usdcWrapper.target,
         signer.address,
@@ -701,7 +660,6 @@ describe("Bridge", function () {
       });
       const usdcWrapper = Usdc.attach(await bridge.createdWrappedTokens(0));
 
-      await bridge.approveAmount(signer.address, amount);
       await bridge.claim(
         usdcWrapper.target,
         signer.address,
@@ -740,7 +698,6 @@ describe("Bridge", function () {
       });
       const usdcWrapper = Usdc.attach(await bridge.createdWrappedTokens(0));
 
-      await bridge.approveAmount(signer.address, amount);
       await bridge.claim(
         usdcWrapper.target,
         signer.address,
@@ -777,7 +734,6 @@ describe("Bridge", function () {
       });
       const usdcWrapper = Usdc.attach(await bridge.createdWrappedTokens(0));
 
-      await bridge.approveAmount(signer.address, amount);
       await bridge.claim(
         usdcWrapper.target,
         signer.address,

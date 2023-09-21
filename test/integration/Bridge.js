@@ -71,16 +71,15 @@ describe("Bridge", function () {
       const bridgeMumbai = await BridgeFactoryMumbai.deploy();
       await bridgeMumbai.waitForDeployment();
 
-      expect(await bridgeSepolia.registerToken(permitToken.target)).to.not.be
-        .reverted;
+      tx = await bridgeSepolia.registerToken(permitToken.target);
+      await tx.wait();
 
-      expect(
-        await bridgeMumbai.deployWrappedToken(
-          permitToken.target,
-          wName,
-          wSymbol
-        )
-      ).to.not.be.reverted;
+      tx = await bridgeMumbai.deployWrappedToken(
+        permitToken.target,
+        wName,
+        wSymbol
+      );
+      await tx.wait();
 
       const TokenFactory = new ethers.ContractFactory(
         Token.abi,
@@ -119,12 +118,7 @@ describe("Bridge", function () {
         amount
       );
 
-      tx = await bridgeMumbai.approveAmount(signer.address, amount);
-      await tx.wait();
-
-      const nonce = await mumbaiForkProvider.getTransactionCount(
-        signer.address
-      );
+      let nonce = await mumbaiForkProvider.getTransactionCount(signer.address);
 
       const bytes = ethers.solidityPacked(
         ["address", "address", "uint256", "uint256", "uint256"],
@@ -133,24 +127,26 @@ describe("Bridge", function () {
       const hash = ethers.keccak256(bytes);
       const sig = await signer.signMessage(ethers.toBeArray(hash));
 
-      expect(
-        await bridgeMumbai.claim(
-          wrapper.target,
-          signer.address,
-          signer.address,
-          amount,
-          deadline,
-          nonce,
-          sig
-        )
-      ).to.not.be.reverted;
+      tx = await bridgeMumbai.claim(
+        wrapper.target,
+        signer.address,
+        signer.address,
+        amount,
+        deadline,
+        nonce,
+        sig
+      );
+      await tx.wait();
 
-      expect(await bridgeMumbai.burn(wrapper.target, amount, nonce + 1)).to.not
-        .be.reverted;
+      tx = await bridgeMumbai.burn(wrapper.target, amount, nonce + 1);
+      await tx.wait();
 
-      expect(
-        await bridgeSepolia.release(permitToken.target, signer.address, amount)
-      ).to.not.be.reverted;
+      tx = await bridgeSepolia.release(
+        permitToken.target,
+        signer.address,
+        amount
+      );
+      await tx.wait();
     });
   });
 });
