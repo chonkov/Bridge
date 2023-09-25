@@ -38,7 +38,6 @@ contract Bridge is IBridge, Ownable {
         address from,
         uint256 chainId,
         uint amount,
-        uint date,
         uint nonce
     );
 
@@ -141,14 +140,7 @@ contract Bridge is IBridge, Ownable {
         processedNonces[msg.sender][_nonce] = true;
 
         IERC20Token(_token).burn(msg.sender, _amount);
-        emit BurnToken(
-            _token,
-            msg.sender,
-            block.chainid,
-            _amount,
-            block.timestamp,
-            _nonce
-        );
+        emit BurnToken(_token, msg.sender, block.chainid, _amount, _nonce);
     }
 
     function claim(
