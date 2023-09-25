@@ -2,13 +2,13 @@
 pragma solidity ^0.8.17;
 
 interface IBridge {
-    function registerToken(address _token) external;
+    // function registerToken(address _token) external;
 
-    function deployWrappedToken(
-        address _token,
-        string memory _name,
-        string memory _symbol
-    ) external;
+    // function deployWrappedToken(
+    //     address _token,
+    //     string memory _name,
+    //     string memory _symbol
+    // ) external;
 
     function lockToken(
         address _token,
@@ -23,11 +23,12 @@ interface IBridge {
 
     function claim(
         address _token,
-        address from,
-        address to,
-        uint amount,
-        uint deadline,
-        uint nonce,
-        bytes calldata signature
+        string calldata _name,
+        string calldata _symbol,
+        address _from,
+        address _to,
+        uint _amount,
+        uint _nonce,
+        bytes calldata _signature
     ) external;
 }

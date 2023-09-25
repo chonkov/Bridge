@@ -15,7 +15,7 @@ contract Bridge is IBridge, Ownable {
     mapping(address => ERC20Token) public wrappedTokenContracts;
     mapping(address => bool) public registeredTokens;
     address[] public createdWrappedTokens;
-    // mapping(address => uint) public approvedAmount;
+    mapping(address => uint) public approvedAmount;
 
     event RegisterToken(
         address indexed token,
@@ -24,7 +24,12 @@ contract Bridge is IBridge, Ownable {
         address from
     );
 
-    event DeployToken(address indexed source, address indexed wrapper);
+    event DeployToken(
+        address indexed source,
+        address indexed wrapper,
+        string name,
+        string symbol
+    );
 
     event ApproveAmount(address indexed addr, uint indexed amount);
 
@@ -52,51 +57,16 @@ contract Bridge is IBridge, Ownable {
         address to,
         uint chainId,
         uint amount,
-        uint date,
-        uint deadline,
         uint nonce,
         bytes signature
     );
 
     event ReleaseToken(address token, address to, uint amount);
 
-    // Add a new token that is unknown up to this point
-    function registerToken(address _token) external /* onlyOwner */ {
-        // Add additional checks, if the token has already been wrapped on the other chain
-        // if (block.chainid == SOURCE_CHAIN_ID) {
-        string memory _name = ERC20Token(_token).name();
-        string memory _symbol = ERC20Token(_token).symbol();
-
-        registeredTokens[_token] = true;
-
-        emit RegisterToken(_token, _name, _symbol, msg.sender);
-        // }
+    function approveAmount(address addr, uint amount) external onlyOwner {
+        approvedAmount[addr] = amount;
+        emit ApproveAmount(addr, amount);
     }
-
-    function deployWrappedToken(
-        address _token,
-        string memory _name,
-        string memory _symbol
-    ) external onlyOwner {
-        if (
-            // block.chainid == TARGET_CHAIN_ID &&
-            wrappedTokenContracts[_token] != ERC20Token(address(0))
-        ) {
-            revert("Contract has an already deployed wrapper");
-        }
-        ERC20Token ercToken = new ERC20Token(_name, _symbol, address(this));
-        wrappedTokenContracts[_token] = ercToken;
-        registeredTokens[_token] = true;
-        createdWrappedTokens.push(address(ercToken));
-
-        emit DeployToken(_token, address(ercToken));
-    }
-
-    // // Remove
-    // function approveAmount(address addr, uint amount) external onlyOwner {
-    //     approvedAmount[addr] = amount;
-    //     emit ApproveAmount(addr, amount);
-    // }
 
     // Optional - Brigde will have to pay fees and for txs to update mapping
     // function update(address sourceAddr, address targetAddr) external onlyOwner {
@@ -109,10 +79,14 @@ contract Bridge is IBridge, Ownable {
         uint256 _deadline,
         bytes calldata _signature
     ) external payable {
-        require(
-            registeredTokens[_token],
-            "Register the token before bridging it"
-        );
+        if (!registeredTokens[_token]) {
+            string memory _name = ERC20Token(_token).name();
+            string memory _symbol = ERC20Token(_token).symbol();
+
+            registeredTokens[_token] = true;
+
+            emit RegisterToken(_token, _name, _symbol, msg.sender);
+        }
         require(_amount > 0, "Bridged amount is required");
         require(msg.value >= SERVICE_FEE, "Not enough service fee");
         // require(
@@ -179,10 +153,11 @@ contract Bridge is IBridge, Ownable {
 
     function claim(
         address _token,
+        string calldata _name,
+        string calldata _symbol,
         address _from,
         address _to,
         uint _amount,
-        uint _deadline,
         uint _nonce,
         bytes calldata _signature
     ) external {
@@ -190,31 +165,36 @@ contract Bridge is IBridge, Ownable {
         //     block.chainid == TARGET_CHAIN_ID,
         //     "Can only claim wrapped tokens on target chain"
         // );
+        ERC20Token wrapper;
+        if (wrappedTokenContracts[_token] == ERC20Token(address(0))) {
+            wrapper = new ERC20Token(_name, _symbol, address(this));
+            wrappedTokenContracts[_token] = wrapper;
+            createdWrappedTokens.push(address(wrapper));
+
+            emit DeployToken(_token, address(wrapper), _name, _symbol);
+        } else {
+            wrapper = wrappedTokenContracts[_token];
+        }
+
         require(
             processedNonces[_from][_nonce] == false,
             "transfer already processed"
         );
 
         bytes32 message = prefixed(
-            keccak256(abi.encodePacked(_from, _to, _amount, _deadline, _nonce))
+            keccak256(abi.encodePacked(_from, _to, _amount, _nonce))
         );
         require(recoverSigner(message, _signature) == _from, "wrong signature"); // from == msg.sender
-        // require(
-        //     approvedAmount[_from] >= _amount,
-        //     "can't claim more than locked amount"
-        // );
+        require(approvedAmount[_from] >= _amount, "insufficient balance");
 
-        // approvedAmount[_from] -= _amount;
         processedNonces[_from][_nonce] = true;
-        ERC20Token(_token).mint(_to, _amount);
+        wrapper.mint(_to, _amount);
         emit ClaimToken(
             _token,
             _from,
             _to,
             block.chainid,
             _amount,
-            block.timestamp,
-            _deadline,
             _nonce,
             _signature
         );
