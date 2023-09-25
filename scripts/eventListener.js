@@ -6,10 +6,8 @@ const Token = require("../artifacts/contracts/ERC20Token.sol/ERC20Token.json");
 async function main() {
   const name = "USD Coin";
   const symbol = "USDC";
-  const amount = ethers.parseEther("1");
   const wName = "Wrapped " + name;
   const wSymbol = "W" + symbol;
-  const fee = ethers.parseEther("0.01");
 
   const [signer, ...other] = await ethers.getSigners();
   const sepoliaForkProvider = new ethers.JsonRpcProvider();
@@ -17,9 +15,9 @@ async function main() {
     "http://localhost:8546"
   );
 
-  const permitTokenAddr = "0x3700C29CC19e333CB5C8CBC26e8aeAE9cBD40564";
-  const bridgeSepoliaAddr = "0xF841B769Be22a1c2E607230e94Be66dc631Bc371";
-  const bridgeMumbaiAddr = "0xcebD232459F9BB789EF49757f354D5629C01F236";
+  const permitTokenAddr = "0xe70fc4dbE4b655DD80FE6C02e0E9C5d3215420Ef";
+  const bridgeSepoliaAddr = "0xA172158Bc63C8037f5eA9f6373f18d2d42A8B9b4";
+  const bridgeMumbaiAddr = "0x951Aa87F2241ccfF4e9e4505eeEdD21C8005Ff48";
 
   const permitToken = new ethers.Contract(
     permitTokenAddr,
@@ -56,11 +54,6 @@ async function main() {
   bridgeSepolia.on("RegisterToken", async (_token, _name, _symbol, _from) => {
     console.log("###########");
     console.log(_token, _name, _symbol, _from);
-
-    // const tx = await bridgeMumbai
-    //   .connect(signer)
-    //   .deployWrappedToken(_token, wName, wSymbol);
-    // await tx.wait();
   });
 
   bridgeSepolia.on(
@@ -116,46 +109,6 @@ async function main() {
       console.log(_token, _sender, _chainId, _amount, _timestamp, _nonce);
     }
   );
-
-  // await new Promise(async (resolve) => {
-  //   bridgeSepolia.on("RegisterToken", (_token, _name, _symbol, _from) => {
-  //     console.log("###########");
-  //     console.log(_token, _name, _symbol, _from);
-  //     resolve(true);
-  //   });
-
-  //   bridgeMumbai.on("DeployToken", (_token, _wrapper) => {
-  //     console.log("###########");
-  //     console.log(_token, _wrapper);
-  //     resolve(true);
-  //   });
-
-  //   // const tx = await bridgeSepolia
-  //   //   .connect(signer)
-  //   //   .deployWrappedToken(permitTokenAddr, wName, wSymbol);
-  //   // const receipt = await tx.wait();
-
-  //   // for (const event of contractReceipt.logs!) {
-  //   //   console.log(event.fragment.name, event.args[0].toString()); // TokensMinted 123
-  //   // }
-
-  //   // Works
-  //   //  contractA.emit("TokensMinted", 123);
-  // });
-
-  // bridgeSepolia.on("RegisterToken", (_token, _name, _symbol, _from) => {
-  //   console.log(_token, _name, _symbol, _from);
-
-  //   // const tx = await bridgeMumbai
-  //   //   .connect(signer)
-  //   //   .deployWrappedToken(_token, wName, wSymbol);
-  //   // const receipt = await tx.wait();
-  //   // console.log(receipt);
-  // });
-
-  // bridgeMumbai.on("DeployToken", async (_token, _wrapper) => {
-  //   console.log(_token, _wrapper);
-  // });
 }
 
 main().catch((error) => {
