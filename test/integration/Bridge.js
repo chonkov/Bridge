@@ -71,23 +71,23 @@ describe("Bridge", function () {
       const bridgeMumbai = await BridgeFactoryMumbai.deploy();
       await bridgeMumbai.waitForDeployment();
 
-      tx = await bridgeSepolia.registerToken(permitToken.target);
-      await tx.wait();
+      // tx = await bridgeSepolia.registerToken(permitToken.target);
+      // await tx.wait();
 
-      tx = await bridgeMumbai.deployWrappedToken(
-        permitToken.target,
-        wName,
-        wSymbol
-      );
-      await tx.wait();
+      // tx = await bridgeMumbai.deployWrappedToken(
+      //   permitToken.target,
+      //   wName,
+      //   wSymbol
+      // );
+      // await tx.wait();
 
       const TokenFactory = new ethers.ContractFactory(
         Token.abi,
         Token.bytecode,
         mumbaiWallet
       );
-      const wrapperAddr = await bridgeMumbai.createdWrappedTokens(0);
-      const wrapper = TokenFactory.attach(wrapperAddr);
+      // const wrapperAddr = await bridgeMumbai.createdWrappedTokens(0);
+      // const wrapper = TokenFactory.attach(wrapperAddr);
 
       const blockTimestamp = (await sepoliaForkProvider.getBlock("latest"))
         .timestamp;
@@ -121,22 +121,26 @@ describe("Bridge", function () {
       let nonce = await mumbaiForkProvider.getTransactionCount(signer.address);
 
       const bytes = ethers.solidityPacked(
-        ["address", "address", "uint256", "uint256", "uint256"],
-        [signer.address, signer.address, amount, deadline, nonce]
+        ["address", "address", "uint256", "uint256"],
+        [signer.address, signer.address, amount, nonce]
       );
       const hash = ethers.keccak256(bytes);
       const sig = await signer.signMessage(ethers.toBeArray(hash));
 
       tx = await bridgeMumbai.claim(
-        wrapper.target,
+        permitToken.target,
+        wName,
+        wSymbol,
         signer.address,
         signer.address,
         amount,
-        deadline,
         nonce,
         sig
       );
       await tx.wait();
+
+      const wrapperAddr = await bridgeMumbai.createdWrappedTokens(0);
+      const wrapper = TokenFactory.attach(wrapperAddr);
 
       tx = await bridgeMumbai.burn(wrapper.target, amount, nonce + 1);
       await tx.wait();

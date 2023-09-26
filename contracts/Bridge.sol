@@ -13,16 +13,7 @@ contract Bridge is IBridge, Ownable {
 
     mapping(address => mapping(uint => bool)) public processedNonces;
     mapping(address => ERC20Token) public wrappedTokenContracts;
-    mapping(address => bool) public registeredTokens;
     address[] public createdWrappedTokens;
-    mapping(address => uint) public approvedAmount;
-
-    event RegisterToken(
-        address indexed token,
-        string name,
-        string symbol,
-        address from
-    );
 
     event DeployToken(
         address indexed source,
@@ -30,8 +21,6 @@ contract Bridge is IBridge, Ownable {
         string name,
         string symbol
     );
-
-    event ApproveAmount(address indexed addr, uint indexed amount);
 
     event BurnToken(
         address token,
@@ -62,30 +51,12 @@ contract Bridge is IBridge, Ownable {
 
     event ReleaseToken(address token, address to, uint amount);
 
-    function approveAmount(address addr, uint amount) external onlyOwner {
-        approvedAmount[addr] = amount;
-        emit ApproveAmount(addr, amount);
-    }
-
-    // Optional - Brigde will have to pay fees and for txs to update mapping
-    // function update(address sourceAddr, address targetAddr) external onlyOwner {
-    //     wrappedTokenContracts[sourceAddr] = ERC20Token(targetAddr);
-    // }
-
     function lockToken(
         address _token,
         uint256 _amount,
         uint256 _deadline,
         bytes calldata _signature
     ) external payable {
-        if (!registeredTokens[_token]) {
-            string memory _name = ERC20Token(_token).name();
-            string memory _symbol = ERC20Token(_token).symbol();
-
-            registeredTokens[_token] = true;
-
-            emit RegisterToken(_token, _name, _symbol, msg.sender);
-        }
         require(_amount > 0, "Bridged amount is required");
         require(msg.value >= SERVICE_FEE, "Not enough service fee");
         // require(
@@ -177,7 +148,6 @@ contract Bridge is IBridge, Ownable {
             keccak256(abi.encodePacked(_from, _to, _amount, _nonce))
         );
         require(recoverSigner(message, _signature) == _from, "wrong signature"); // from == msg.sender
-        require(approvedAmount[_from] >= _amount, "insufficient balance");
 
         processedNonces[_from][_nonce] = true;
         wrapper.mint(_to, _amount);
@@ -213,7 +183,7 @@ contract Bridge is IBridge, Ownable {
     function splitSignature(
         bytes memory sig
     ) internal pure returns (uint8, bytes32, bytes32) {
-        require(sig.length == 65);
+        require(sig.length == 65, "invalid signature length");
         bytes32 r;
         bytes32 s;
         uint8 v;
