@@ -161,7 +161,7 @@ task(
     const to = taskArgs["to"];
     const Bridge = await hre.ethers.getContractFactory("Bridge");
     const bridge = Bridge.attach(taskArgs["bridge"]);
-    const token = await bridge.createdWrappedTokens(taskArgs["token"]);
+    const token = taskArgs["token"];
     const amount = taskArgs["amount"];
     const name = taskArgs["name"];
     const symbol = taskArgs["symbol"];
