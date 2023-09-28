@@ -1,44 +1,24 @@
 const { ethers } = require("hardhat");
 const Bridge = require("../artifacts/contracts/Bridge.sol/Bridge.json");
 const PermitToken = require("../artifacts/contracts/ERC20PermitToken.sol/ERC20PermitToken.json");
-// const Token = require("../artifacts/contracts/ERC20Token.sol/ERC20Token.json");
-const { initializeApp } = require("firebase/app");
-const {
-  getFirestore,
-  collection,
-  // getDocs,
-  addDoc,
-  onSnapshot,
-} = require("firebase/firestore");
+const db = require("./index.js");
 
-const firebaseConfig = {
-  apiKey: "AIzaSyCa9IPhOXinFWPcsee5BEHQcRJN-BXutfE",
-  authDomain: "bridge-d2101.firebaseapp.com",
-  projectId: "bridge-d2101",
-  storageBucket: "bridge-d2101.appspot.com",
-  messagingSenderId: "90712161589",
-  appId: "1:90712161589:web:adb078a0bc31cda1ffe07c",
-  measurementId: "G-X6T0BF8L5W",
-};
+const { collection, addDoc, onSnapshot } = require("firebase/firestore");
 
 async function main() {
   const name = "USD Coin";
   const symbol = "USDC";
-  // const wName = "Wrapped " + name;
-  // const wSymbol = "W" + symbol;
 
-  const [signer, ...other] = await ethers.getSigners();
+  const [signer] = await ethers.getSigners();
   const sepoliaForkProvider = new ethers.JsonRpcProvider();
   const mumbaiForkProvider = new ethers.JsonRpcProvider(
     "http://localhost:8546"
   );
 
-  const permitTokenAddr = "0x7C969786F2477851cf2B1b05b4A9D369f3C37140";
-  const bridgeSepoliaAddr = "0xEE79588a506240e95e25ebABA51389e1e8788058";
-  const bridgeMumbaiAddr = "0x575deA2cCAc5B962E7830c49DeC47e28aB83376C";
+  const permitTokenAddr = "0xBb854b6BFC670069034cF51010bb9899AE6eDDA7";
+  const bridgeSepoliaAddr = "0xa62Ea43b255eb458b61855816311D91d1075bFe9";
+  const bridgeMumbaiAddr = "0x01A5e7675e5f86c31217DE32F444BA384bE94ff5";
 
-  initializeApp(firebaseConfig);
-  const db = getFirestore();
   const colRef = collection(db, "events");
   onSnapshot(colRef, (snapshot) => {
     const events = [];
