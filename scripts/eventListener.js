@@ -1,7 +1,7 @@
 const { ethers } = require("hardhat");
 const Bridge = require("../artifacts/contracts/Bridge.sol/Bridge.json");
 const PermitToken = require("../artifacts/contracts/ERC20PermitToken.sol/ERC20PermitToken.json");
-const db = require("./index.js");
+const db = require("./deployDB.js");
 
 const { collection, addDoc, onSnapshot } = require("firebase/firestore");
 
