@@ -2,22 +2,20 @@ const { ethers } = require("hardhat");
 const Bridge = require("../artifacts/contracts/Bridge.sol/Bridge.json");
 const PermitToken = require("../artifacts/contracts/ERC20PermitToken.sol/ERC20PermitToken.json");
 const db = require("./deployDB.js");
+require("dotenv").config();
+
+const PERMIT_TOKEN = process.env.PERMIT_TOKEN || "0x";
+const BRIDGE_SEPOLIA = process.env.BRIDGE_SEPOLIA || "0x";
+const BRIDGE_MUMBAI = process.env.BRIDGE_MUMBAI || "0x";
 
 const { collection, addDoc, onSnapshot } = require("firebase/firestore");
 
 async function main() {
-  const name = "USD Coin";
-  const symbol = "USDC";
-
   const [signer] = await ethers.getSigners();
   const sepoliaForkProvider = new ethers.JsonRpcProvider();
   const mumbaiForkProvider = new ethers.JsonRpcProvider(
     "http://localhost:8546"
   );
-
-  const permitTokenAddr = "0xBb854b6BFC670069034cF51010bb9899AE6eDDA7";
-  const bridgeSepoliaAddr = "0xa62Ea43b255eb458b61855816311D91d1075bFe9";
-  const bridgeMumbaiAddr = "0x01A5e7675e5f86c31217DE32F444BA384bE94ff5";
 
   const colRef = collection(db, "events");
   onSnapshot(colRef, (snapshot) => {
@@ -29,21 +27,21 @@ async function main() {
   });
 
   const permitToken = new ethers.Contract(
-    permitTokenAddr,
+    PERMIT_TOKEN,
     PermitToken.abi,
     sepoliaForkProvider
   );
   console.log(`✅ Successfully connected to permitToken`);
 
   const bridgeSepolia = new ethers.Contract(
-    bridgeSepoliaAddr,
+    BRIDGE_SEPOLIA,
     Bridge.abi,
     sepoliaForkProvider
   );
   console.log(`✅ Successfully connected to bridge on Sepolia`);
 
   const bridgeMumbai = new ethers.Contract(
-    bridgeMumbaiAddr,
+    BRIDGE_MUMBAI,
     Bridge.abi,
     mumbaiForkProvider
   );

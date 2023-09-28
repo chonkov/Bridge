@@ -71,23 +71,11 @@ describe("Bridge", function () {
       const bridgeMumbai = await BridgeFactoryMumbai.deploy();
       await bridgeMumbai.waitForDeployment();
 
-      // tx = await bridgeSepolia.registerToken(permitToken.target);
-      // await tx.wait();
-
-      // tx = await bridgeMumbai.deployWrappedToken(
-      //   permitToken.target,
-      //   wName,
-      //   wSymbol
-      // );
-      // await tx.wait();
-
       const TokenFactory = new ethers.ContractFactory(
         Token.abi,
         Token.bytecode,
         mumbaiWallet
       );
-      // const wrapperAddr = await bridgeMumbai.createdWrappedTokens(0);
-      // const wrapper = TokenFactory.attach(wrapperAddr);
 
       const blockTimestamp = (await sepoliaForkProvider.getBlock("latest"))
         .timestamp;

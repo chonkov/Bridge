@@ -8,14 +8,14 @@ import {IBridge} from "./interfaces/IBridge.sol";
 
 contract Bridge is IBridge, Ownable {
     uint256 public constant SERVICE_FEE = 0.01 ether;
-    uint256 public constant SOURCE_CHAIN_ID = 11155111; // SEPOLIA
-    uint256 public constant TARGET_CHAIN_ID = 80001; // MUMBAI
+    uint256 public immutable SOURCE_CHAIN_ID;
 
     mapping(address => mapping(uint => bool)) public processedNonces;
     mapping(address => ERC20Token) public wrappedTokenContracts;
     address[] public createdWrappedTokens;
 
     event DeployToken(
+        address indexed deployer,
         address indexed source,
         address indexed wrapper,
         string name,
@@ -51,6 +51,14 @@ contract Bridge is IBridge, Ownable {
 
     event ReleaseToken(address token, address to, uint amount);
 
+    constructor() {
+        uint id;
+        assembly {
+            id := chainid()
+        }
+        SOURCE_CHAIN_ID = id;
+    }
+
     function lockToken(
         address _token,
         uint256 _amount,
@@ -59,16 +67,25 @@ contract Bridge is IBridge, Ownable {
     ) external payable {
         require(_amount > 0, "Bridged amount is required");
         require(msg.value >= SERVICE_FEE, "Not enough service fee");
-        // require(
-        //     block.chainid == SOURCE_CHAIN_ID,
-        //     "Can only lock token on source chain"
-        // );
 
-        uint8 v;
-        bytes32 r;
-        bytes32 s;
-        (v, r, s) = splitSignature(_signature);
+        // try ERC20Token(_token).owner() returns (address _owner) {
+        //     if (_owner == address(this)) {
+        //         uint _nonce = ERC20Token(_token).nonces(msg.sender);
+        //         _burn(_token, _amount, _nonce); // internal call
 
+        //         emit LockToken(
+        //             _token,
+        //             msg.sender,
+        //             block.chainid,
+        //             _amount,
+        //             _deadline,
+        //             _signature
+        //         );
+        //         return;
+        //     }
+        // } catch {}
+
+        (uint8 v, bytes32 r, bytes32 s) = splitSignature(_signature);
         IERC20Permit(_token).permit(
             msg.sender,
             address(this),
@@ -108,6 +125,10 @@ contract Bridge is IBridge, Ownable {
             processedNonces[msg.sender][_nonce] == false,
             "transfer already processed"
         );
+        _burn(_token, _amount, _nonce);
+    }
+
+    function _burn(address _token, uint256 _amount, uint _nonce) internal {
         processedNonces[msg.sender][_nonce] = true;
 
         IERC20Token(_token).burn(msg.sender, _amount);
@@ -134,7 +155,13 @@ contract Bridge is IBridge, Ownable {
             wrappedTokenContracts[_token] = wrapper;
             createdWrappedTokens.push(address(wrapper));
 
-            emit DeployToken(_token, address(wrapper), _name, _symbol);
+            emit DeployToken(
+                msg.sender,
+                _token,
+                address(wrapper),
+                _name,
+                _symbol
+            );
         } else {
             wrapper = wrappedTokenContracts[_token];
         }

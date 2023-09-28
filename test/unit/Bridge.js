@@ -60,12 +60,10 @@ describe("Bridge", function () {
       const { bridge } = await loadFixture(deployBridge);
 
       const fee = ethers.parseEther("0.01");
-      const sourceChainId = 11155111;
-      const targetChainId = 80001;
+      const sourceChainId = 31337;
 
       expect(await bridge.SERVICE_FEE()).to.equal(fee);
       expect(await bridge.SOURCE_CHAIN_ID()).to.equal(sourceChainId);
-      expect(await bridge.TARGET_CHAIN_ID()).to.equal(targetChainId);
     });
   });
 
@@ -246,6 +244,7 @@ describe("Bridge", function () {
       )
         .to.emit(bridge, "DeployToken")
         .withArgs(
+          signer.address,
           usdc.target,
           "0xa16E02E87b7454126E5E10d957A927A7F5B5d2be",
           wName,
