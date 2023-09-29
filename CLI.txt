@@ -1,0 +1,12 @@
+1. npx hardhat run scripts/deployERC20PermitToken.js --network localhost_<SOURCE_CHAIN>
+2. npx hardhat run scripts/deployBridge.js --network localhost_<SOURCE_CHAIN>
+3. npx hardhat run scripts/deployBridge.js --network localhost_<DESTINATION_CHAIN>
+
+4. npx hardhat permit-signature --from <SIGNER_ADDRESS> --to <SOURCE_BRIDGE_STEP_2> --token <SOURCE_TOKEN_STEP_1> --amount <TOKENS_AMOUNT> --deadline <DEADLINE> --network localhost_<SOURCE_CHAIN>
+5. npx hardhat lock --bridge <SOURCE_BRIDGE_STEP_2> --token <SOURCE_TOKEN_STEP_1> --amount <TOKENS_AMOUNT> --deadline <DEADLINE> --fee 1000000000000000000 --signature <SIGNATURE_COMPUTED_STEP_4> --network localhost_<SOURCE_CHAIN>
+
+6. npx hardhat signature --from <SIGNER_ADDRESS> --to <RECEIVER_ADDRESS> --amount <TOKENS_AMOUNT> --deadline <DEADLINE> --nonce <NONCE_NOT_ALREADY_PROCESSED> --network localhost_<DESTINATION_CHAIN>
+7. npx hardhat claim --from <SIGNER_ADDRESS> --to <RECEIVER_ADDRESS> --bridge <DESTINATION_BRIDGE_STEP_3> --token <SOURCE_TOKEN_STEP_1> --name <NAME> --symbol <SYMBOL> --amount <TOKENS_AMOUNT> --deadline <DEADLINE> --nonce <NONCE_NOT_ALREADY_PROCESSED> --signature <SIGNATURE_COMPUTED_STEP_4> --network localhost_<DESTINATION_CHAIN>
+
+8. npx hardhat burn --bridge <DESTINATION_BRIDGE_STEP_3> --token <INDEX_OF_TOKEN> --amount <TOKENS_AMOUNT> --nonce <NONCE_NOT_ALREADY_PROCESSED> --network localhost_<DESTINATION_CHAIN>
+9. npx hardhat release --to <RECEIVER_ADDRESS> --bridge <SOURCE_BRIDGE_STEP_2> --token <SOURCE_TOKEN_STEP_1> --amount <TOKENS_AMOUNT> --network localhost_<SOURCE_CHAIN>
