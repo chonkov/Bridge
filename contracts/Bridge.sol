@@ -35,6 +35,7 @@ contract Bridge is IBridge, Ownable {
         address from,
         uint256 chainId,
         uint256 amount,
+        uint256 nonce,
         uint256 deadline,
         bytes signature
     );
@@ -85,6 +86,7 @@ contract Bridge is IBridge, Ownable {
         //     }
         // } catch {}
 
+        uint nonce = IERC20Permit(_token).nonces(msg.sender);
         (uint8 v, bytes32 r, bytes32 s) = splitSignature(_signature);
         IERC20Permit(_token).permit(
             msg.sender,
@@ -101,6 +103,7 @@ contract Bridge is IBridge, Ownable {
             msg.sender,
             block.chainid,
             _amount,
+            nonce,
             _deadline,
             _signature
         );
