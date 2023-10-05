@@ -17,6 +17,7 @@ const {
   query,
   where,
   getDocs,
+  getDoc,
 } = require("firebase/firestore");
 
 async function main() {
@@ -29,33 +30,16 @@ async function main() {
   );
 
   const colRef = collection(db, "events");
-  // console.log(colRef);
-  let querySnapshot;
+  const lockedTokensEvents = [];
 
   onSnapshot(colRef, async (snapshot) => {
-    const events = [];
     snapshot.docs.forEach((doc) => {
-      events.push({ ...doc.data(), id: doc.id });
+      if (doc.data().eventType == "lock")
+        lockedTokensEvents.push({ ...doc.data(), id: doc.id });
     });
-    // querySnapshot = await getDocs(
-    //   collection(db, "events"),
-    //   where("eventType", "==", "lock"),
-    //   where("isClaimed", "==", false)
-    // );
-    // console.log(events);
   });
 
-  // console.log(querySnapshot);
-  // querySnapshot.forEach((doc) => {
-  //   // doc.data() is never undefined for query doc snapshots
-  //   console.log(doc.data());
-  // });
-  // const q = query(collection(db, "events"), where("eventType", "==", "lock"));
-  // const querySnapshot = await getDocs(q);
-  // querySnapshot.forEach((doc) => {
-  //   // doc.data() is never undefined for query doc snapshots
-  //   console.log(doc.id, " => ", doc.data());
-  // });
+  console.log(lockedTokensEvents);
 
   const permitToken = new ethers.Contract(
     PERMIT_TOKEN,
@@ -152,14 +136,23 @@ async function main() {
     }
   );
 
-  function update(_nonce) {
-    const docRef = doc(db, "events", `${_nonce}`);
+  async function update(_nonce) {
+    const q = query(
+      collection(db, "events"),
+      where("eventType", "==", "Lock"),
+      where("isClaimed", "==", false)
+    );
+    const querySnapshot = await getDocs(q);
 
-    querySnapshot.forEach((doc) => {
-      if (doc.data().nonce == _nonce) {
-        setDoc(docRef, { isClaimed: true }, { merge: true });
-      }
+    querySnapshot.forEach(async (doc) => {
+      const ref = doc.ref;
       console.log(doc.id, " => ", doc.data());
+
+      if (doc.data().nonce == _nonce) {
+        await updateDoc(ref, {
+          isClaimed: true,
+        });
+      }
     });
   }
 
