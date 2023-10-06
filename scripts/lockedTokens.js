@@ -1,21 +1,27 @@
 const { db } = require("./deployDB.js");
-const { collection, onSnapshot, where } = require("firebase/firestore");
+const {
+  collection,
+  onSnapshot,
+  query,
+  where,
+  getDocs,
+} = require("firebase/firestore");
 
+const colRef = collection(db, "events");
 const lockedTokensEvents = [];
 
-const colRef = collection(
-  db,
-  "events"
-  // where("eventType", "==", "Lock"),
-  // where("isClaimed", "==", false)
-);
-onSnapshot(colRef, (snapshot) => {
-  snapshot.docs.forEach((doc) => {
-    const eventType = doc.data().eventType;
-    const isClaimed = doc.data().isClaimed;
-    if (eventType === "Lock" && !isClaimed) {
-      lockedTokensEvents.push({ ...doc.data(), id: doc.id });
-    }
+onSnapshot(colRef, async () => {
+  lockedTokensEvents.length = 0;
+
+  const q = query(
+    colRef,
+    where("eventType", "==", "Lock"),
+    where("isClaimed", "==", false)
+  );
+  const querySnapshot = await getDocs(q);
+
+  querySnapshot.forEach((doc) => {
+    lockedTokensEvents.push({ ...doc.data(), id: doc.id });
   });
 });
 

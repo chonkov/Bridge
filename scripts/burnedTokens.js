@@ -1,15 +1,27 @@
 const { db } = require("./deployDB.js");
-const { collection, onSnapshot } = require("firebase/firestore");
-
-const burnedTokensEvents = [];
+const {
+  collection,
+  onSnapshot,
+  query,
+  where,
+  getDocs,
+} = require("firebase/firestore");
 
 const colRef = collection(db, "events");
-onSnapshot(colRef, (snapshot) => {
-  snapshot.docs.forEach((doc) => {
-    const eventType = doc.data().eventType;
-    if (eventType === "Burn") {
-      burnedTokensEvents.push({ ...doc.data(), id: doc.id });
-    }
+const burnedTokensEvents = [];
+
+onSnapshot(colRef, async () => {
+  burnedTokensEvents.length = 0;
+
+  const q = query(
+    colRef,
+    where("eventType", "==", "Burn"),
+    where("isReleased", "==", false)
+  );
+  const querySnapshot = await getDocs(q);
+
+  querySnapshot.forEach((doc) => {
+    burnedTokensEvents.push({ ...doc.data(), id: doc.id });
   });
 });
 
