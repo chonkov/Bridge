@@ -50,7 +50,12 @@ contract Bridge is IBridge, Ownable {
         bytes signature
     );
 
-    event ReleaseToken(address token, address to, uint amount);
+    event ReleaseToken(
+        address token,
+        address operator,
+        address to,
+        uint amount
+    );
 
     constructor() {
         uint id;
@@ -115,7 +120,7 @@ contract Bridge is IBridge, Ownable {
         uint256 _amount
     ) external onlyOwner {
         IERC20(_token).transfer(_to, _amount);
-        emit ReleaseToken(_token, _to, _amount);
+        emit ReleaseToken(_token, msg.sender, _to, _amount);
     }
 
     function burn(address _token, uint256 _amount, uint _nonce) external {
