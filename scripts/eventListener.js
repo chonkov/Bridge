@@ -30,16 +30,6 @@ async function main() {
   );
 
   const colRef = collection(db, "events");
-  const lockedTokensEvents = [];
-
-  onSnapshot(colRef, async (snapshot) => {
-    snapshot.docs.forEach((doc) => {
-      if (doc.data().eventType == "lock")
-        lockedTokensEvents.push({ ...doc.data(), id: doc.id });
-    });
-  });
-
-  console.log(lockedTokensEvents);
 
   const permitToken = new ethers.Contract(
     PERMIT_TOKEN,
@@ -103,13 +93,16 @@ async function main() {
     }
   );
 
-  bridgeSepolia.on("ReleaseToken", (_token, _to, _amount) => {
+  bridgeSepolia.on("ReleaseToken", (_token, _operator, _to, _amount) => {
     console.log("###########");
-    console.log(_token, _to, _amount);
+    console.log(_token, _operator, _to, _amount);
+
+    updateBurn(_operator, "Burn", "isReleased");
 
     const data = {
       eventType: "Release",
       token: _token,
+      operator: _operator,
       to: _to,
       amount: `${_amount}`,
     };
@@ -136,21 +129,40 @@ async function main() {
     }
   );
 
-  async function update(_nonce) {
+  async function updateLock(_nonce, eventType, condition) {
     const q = query(
-      collection(db, "events"),
-      where("eventType", "==", "Lock"),
-      where("isClaimed", "==", false)
+      colRef,
+      where("eventType", "==", eventType),
+      where(condition, "==", false)
     );
     const querySnapshot = await getDocs(q);
 
     querySnapshot.forEach(async (doc) => {
       const ref = doc.ref;
-      console.log(doc.id, " => ", doc.data());
 
       if (doc.data().nonce == _nonce) {
         await updateDoc(ref, {
           isClaimed: true,
+        });
+      }
+    });
+  }
+
+  async function updateBurn(operator, eventType, condition) {
+    const q = query(
+      colRef,
+      where("eventType", "==", eventType),
+      where(condition, "==", false)
+    );
+    const querySnapshot = await getDocs(q);
+    const _nonce = Number(await permitToken.nonces(operator));
+
+    querySnapshot.forEach(async (doc) => {
+      const ref = doc.ref;
+
+      if (doc.data().nonce == _nonce) {
+        await updateDoc(ref, {
+          isReleased: true,
         });
       }
     });
@@ -162,7 +174,7 @@ async function main() {
       console.log("###########");
       console.log(_token, _from, _to, _chainId, _amount, _nonce, _signature);
 
-      update(_nonce);
+      updateLock(_nonce, "Lock", "isClaimed");
 
       const data = {
         eventType: "Claim",
@@ -190,6 +202,7 @@ async function main() {
       chainId: `${_chainId}`,
       amount: `${_amount}`,
       nonce: `${_nonce}`,
+      isReleased: false,
     };
 
     addDoc(colRef, data).then(() => {});
