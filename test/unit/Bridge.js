@@ -60,10 +60,8 @@ describe("Bridge", function () {
       const { bridge } = await loadFixture(deployBridge);
 
       const fee = ethers.parseEther("0.01");
-      const sourceChainId = 31337;
 
       expect(await bridge.SERVICE_FEE()).to.equal(fee);
-      expect(await bridge.SOURCE_CHAIN_ID()).to.equal(sourceChainId);
     });
   });
 
@@ -97,20 +95,24 @@ describe("Bridge", function () {
       const { deadline } = await loadFixture(computeDeadline);
       const { signature } = await loadFixture(computePermitSignature);
 
-      expect(
-        await bridge.lockToken(usdc.target, amount, deadline, signature, {
+      const blockNumber = await ethers.provider.getBlockNumber();
+
+      await expect(
+        bridge.lockToken(usdc.target, amount, deadline, signature, {
           value: amount,
         })
       )
-        .to.emit("LockToken")
-        .withArgs([
+        .to.emit(bridge, "LockToken")
+        .withArgs(
           usdc.target,
           signer.address,
+          BigInt(blockNumber + 1),
           31337,
           amount,
+          0,
           deadline,
-          signature,
-        ]);
+          signature
+        );
     });
 
     it("Should throw an error when bridged tokens are zero", async function () {
@@ -195,6 +197,8 @@ describe("Bridge", function () {
       const hash = ethers.keccak256(bytes);
       const sig = await signer.signMessage(ethers.toBeArray(hash));
 
+      const blockNumber = await ethers.provider.getBlockNumber();
+
       await expect(
         bridge.claim(
           usdc.target,
@@ -212,6 +216,7 @@ describe("Bridge", function () {
           usdc.target,
           signer.address,
           signer.address,
+          BigInt(blockNumber + 1),
           31337,
           amount,
           nonce,
@@ -441,9 +446,18 @@ describe("Bridge", function () {
 
       const usdcWrapper = Usdc.attach(await bridge.createdWrappedTokens(0));
 
+      const blockNumber = await ethers.provider.getBlockNumber();
+
       await expect(bridge.burn(usdcWrapper.target, amount, nonce + 1))
         .to.emit(bridge, "BurnToken")
-        .withArgs(usdcWrapper.target, signer.address, 31337, amount, nonce + 1);
+        .withArgs(
+          usdcWrapper.target,
+          signer.address,
+          BigInt(blockNumber + 1),
+          31337,
+          amount,
+          nonce + 1
+        );
     });
 
     it("Should revert, if nonce has been processed", async function () {
@@ -503,9 +517,18 @@ describe("Bridge", function () {
         value: amount,
       });
 
+      const blockNumber = await ethers.provider.getBlockNumber();
+
       await expect(bridge.release(usdc.target, signer.address, amount))
         .to.emit(bridge, "ReleaseToken")
-        .withArgs(usdc.target, signer.address, amount);
+        .withArgs(
+          usdc.target,
+          signer.address,
+          signer.address,
+          BigInt(blockNumber + 1),
+          31337,
+          amount
+        );
     });
 
     it("Should revert, if not owner calls it", async function () {

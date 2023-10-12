@@ -20,9 +20,11 @@ describe("Bridge", function () {
     it("Should not revert - the whole bridge workflow should work properly", async function () {
       const [signer, ...other] = await ethers.getSigners();
 
-      const sepoliaForkProvider = new ethers.JsonRpcProvider();
+      const sepoliaForkProvider = new ethers.JsonRpcProvider(
+        "http://127.0.0.1:8545/"
+      );
       const mumbaiForkProvider = new ethers.JsonRpcProvider(
-        "http://localhost:8546"
+        "http://127.0.0.1:8546/"
       );
 
       const sepoliaWallet = new ethers.Wallet(
