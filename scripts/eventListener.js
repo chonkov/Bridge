@@ -65,11 +65,21 @@ async function main() {
 
   bridgeSepolia.on(
     "LockToken",
-    (_token, _from, _chainId, _amount, _nonce, _deadline, _signature) => {
+    (
+      _token,
+      _from,
+      _blockNumber,
+      _chainId,
+      _amount,
+      _nonce,
+      _deadline,
+      _signature
+    ) => {
       console.log("###########");
       console.log(
         _token,
         _from,
+        _blockNumber,
         _chainId,
         _amount,
         _nonce,
@@ -81,6 +91,7 @@ async function main() {
         eventType: "Lock",
         token: _token,
         from: _from,
+        blockNumber: `${_blockNumber}`,
         chainId: `${_chainId}`,
         amount: `${_amount}`,
         nonce: `${_nonce}`,
@@ -93,22 +104,27 @@ async function main() {
     }
   );
 
-  bridgeSepolia.on("ReleaseToken", (_token, _operator, _to, _amount) => {
-    console.log("###########");
-    console.log(_token, _operator, _to, _amount);
+  bridgeSepolia.on(
+    "ReleaseToken",
+    (_token, _operator, _to, _blockNumber, _chainId, _amount) => {
+      console.log("###########");
+      console.log(_token, _operator, _to, _blockNumber, _chainId, _amount);
 
-    updateBurn(_operator, "Burn", "isReleased");
+      updateBurn(_operator, "Burn", "isReleased");
 
-    const data = {
-      eventType: "Release",
-      token: _token,
-      operator: _operator,
-      to: _to,
-      amount: `${_amount}`,
-    };
+      const data = {
+        eventType: "Release",
+        token: _token,
+        operator: _operator,
+        to: _to,
+        blockNumber: `${_blockNumber}`,
+        chainId: `${_chainId}`,
+        amount: `${_amount}`,
+      };
 
-    addDoc(colRef, data).then(() => {});
-  });
+      addDoc(colRef, data).then(() => {});
+    }
+  );
 
   bridgeMumbai.on(
     "DeployToken",
@@ -170,9 +186,27 @@ async function main() {
 
   bridgeMumbai.on(
     "ClaimToken",
-    (_token, _from, _to, _chainId, _amount, _nonce, _signature) => {
+    (
+      _token,
+      _from,
+      _to,
+      _blockNumber,
+      _chainId,
+      _amount,
+      _nonce,
+      _signature
+    ) => {
       console.log("###########");
-      console.log(_token, _from, _to, _chainId, _amount, _nonce, _signature);
+      console.log(
+        _token,
+        _from,
+        _to,
+        _blockNumber,
+        _chainId,
+        _amount,
+        _nonce,
+        _signature
+      );
 
       updateLock(_nonce, "Lock", "isClaimed");
 
@@ -181,6 +215,7 @@ async function main() {
         token: _token,
         from: _from,
         to: _to,
+        blockNumber: `${_blockNumber}`,
         chainId: `${_chainId}`,
         amount: `${_amount}`,
         nonce: `${_nonce}`,
@@ -191,22 +226,26 @@ async function main() {
     }
   );
 
-  bridgeMumbai.on("BurnToken", (_token, _sender, _chainId, _amount, _nonce) => {
-    console.log("###########");
-    console.log(_token, _sender, _chainId, _amount, _nonce);
+  bridgeMumbai.on(
+    "BurnToken",
+    (_token, _sender, _blockNumber, _chainId, _amount, _nonce) => {
+      console.log("###########");
+      console.log(_token, _sender, _blockNumber, _chainId, _amount, _nonce);
 
-    const data = {
-      eventType: "Burn",
-      token: _token,
-      sender: _sender,
-      chainId: `${_chainId}`,
-      amount: `${_amount}`,
-      nonce: `${_nonce}`,
-      isReleased: false,
-    };
+      const data = {
+        eventType: "Burn",
+        token: _token,
+        sender: _sender,
+        blockNumber: `${_blockNumber}`,
+        chainId: `${_chainId}`,
+        amount: `${_amount}`,
+        nonce: `${_nonce}`,
+        isReleased: false,
+      };
 
-    addDoc(colRef, data).then(() => {});
-  });
+      addDoc(colRef, data).then(() => {});
+    }
+  );
 }
 
 main().catch((error) => {
