@@ -1,16 +1,18 @@
 //SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
+pragma solidity 0.8.19;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20, IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import {ERC20Token, IERC20Token} from "./ERC20Token.sol";
+import {ERC20PermitToken} from "./ERC20PermitToken.sol";
 import {IBridge} from "./interfaces/IBridge.sol";
 
 contract Bridge is IBridge, Ownable {
     uint256 public constant SERVICE_FEE = 0.01 ether;
 
-    mapping(address => mapping(uint256 => bool)) public processedNonces;
-    mapping(address => ERC20Token) public wrappedTokenContracts;
+    mapping(address addr => mapping(uint256 nonce => bool isProcessed))
+        public processedNonces;
+    mapping(address source => ERC20Token dest) public wrappedTokenContracts;
     address[] public createdWrappedTokens;
 
     event DeployToken(
@@ -61,7 +63,7 @@ contract Bridge is IBridge, Ownable {
         uint256 amount
     );
 
-    function lockToken(
+    function lock(
         address _token,
         uint256 _amount,
         uint256 _deadline,
@@ -70,21 +72,16 @@ contract Bridge is IBridge, Ownable {
         require(_amount > 0, "Bridged amount is required");
         require(msg.value >= SERVICE_FEE, "Not enough service fee");
 
-        uint256 nonce = IERC20Permit(_token).nonces(_msgSender());
+        address from = _msgSender();
+        address to = address(this);
+
+        uint256 nonce = IERC20Permit(_token).nonces(from);
         (uint8 v, bytes32 r, bytes32 s) = splitSignature(_signature);
-        IERC20Permit(_token).permit(
-            _msgSender(),
-            address(this),
-            _amount,
-            _deadline,
-            v,
-            r,
-            s
-        );
-        IERC20(_token).transferFrom(_msgSender(), address(this), _amount);
+        IERC20Permit(_token).permit(from, to, _amount, _deadline, v, r, s);
+        IERC20(_token).transferFrom(from, to, _amount);
         emit LockToken(
             _token,
-            _msgSender(),
+            from,
             block.number,
             block.chainid,
             _amount,
@@ -97,12 +94,22 @@ contract Bridge is IBridge, Ownable {
     function release(
         address _token,
         address _to,
-        uint256 _amount
-    ) external onlyOwner {
+        uint256 _amount,
+        uint256 _nonce,
+        bytes calldata _signature
+    ) external {
+        address from = _msgSender();
+
+        bytes32 message = prefixed(
+            keccak256(abi.encodePacked(from, _to, _amount, _nonce))
+        );
+
+        require(recoverSigner(message, _signature) == from, "wrong signature");
+
         IERC20(_token).transfer(_to, _amount);
         emit ReleaseToken(
             _token,
-            _msgSender(),
+            from,
             _to,
             block.number,
             block.chainid,

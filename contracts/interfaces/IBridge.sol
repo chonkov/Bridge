@@ -2,14 +2,20 @@
 pragma solidity ^0.8.17;
 
 interface IBridge {
-    function lockToken(
+    function lock(
         address _token,
         uint256 _amount,
         uint256 deadline,
         bytes calldata _signature
     ) external payable;
 
-    function release(address _token, address _to, uint256 _amount) external;
+    function release(
+        address _token,
+        address _to,
+        uint256 _amount,
+        uint256 _nonce,
+        bytes calldata _signature
+    ) external;
 
     function burn(address _token, uint256 _amount, uint _nonce) external;
 
