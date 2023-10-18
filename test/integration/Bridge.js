@@ -92,7 +92,7 @@ describe("Bridge", function () {
       );
 
       expect(
-        await bridgeSepolia.lockToken(
+        await bridgeSepolia.lock(
           permitToken.target,
           amount,
           deadline,
@@ -110,12 +110,12 @@ describe("Bridge", function () {
 
       let nonce = await mumbaiForkProvider.getTransactionCount(signer.address);
 
-      const bytes = ethers.solidityPacked(
+      let bytes = ethers.solidityPacked(
         ["address", "address", "uint256", "uint256"],
         [signer.address, signer.address, amount, nonce]
       );
-      const hash = ethers.keccak256(bytes);
-      const sig = await signer.signMessage(ethers.toBeArray(hash));
+      let hash = ethers.keccak256(bytes);
+      let sig = await signer.signMessage(ethers.toBeArray(hash));
 
       tx = await bridgeMumbai.claim(
         permitToken.target,
@@ -135,10 +135,20 @@ describe("Bridge", function () {
       tx = await bridgeMumbai.burn(wrapper.target, amount, nonce + 1);
       await tx.wait();
 
+      nonce = parseInt(await permitToken.nonces(signer.address)) - 1;
+      bytes = ethers.solidityPacked(
+        ["address", "address", "uint256", "uint256"],
+        [signer.address, signer.address, amount, nonce]
+      );
+      hash = ethers.keccak256(bytes);
+      sig = await signer.signMessage(ethers.toBeArray(hash));
+
       tx = await bridgeSepolia.release(
         permitToken.target,
         signer.address,
-        amount
+        amount,
+        nonce,
+        sig
       );
       await tx.wait();
     });

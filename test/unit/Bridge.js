@@ -79,7 +79,7 @@ describe("Bridge", function () {
       expect(await usdc.balanceOf(bridge.target)).to.equal(0);
 
       expect(
-        await bridge.lockToken(usdc.target, amount, deadline, signature, {
+        await bridge.lock(usdc.target, amount, deadline, signature, {
           value: amount,
         })
       ).to.not.be.reverted;
@@ -98,7 +98,7 @@ describe("Bridge", function () {
       const blockNumber = await ethers.provider.getBlockNumber();
 
       await expect(
-        bridge.lockToken(usdc.target, amount, deadline, signature, {
+        bridge.lock(usdc.target, amount, deadline, signature, {
           value: amount,
         })
       )
@@ -122,7 +122,7 @@ describe("Bridge", function () {
       const { signature } = await loadFixture(computePermitSignature);
 
       await expect(
-        bridge.lockToken(usdc.target, 0, deadline, signature, { value: amount })
+        bridge.lock(usdc.target, 0, deadline, signature, { value: amount })
       ).to.be.revertedWith("Bridged amount is required");
     });
 
@@ -133,7 +133,7 @@ describe("Bridge", function () {
       const { signature } = await loadFixture(computePermitSignature);
 
       await expect(
-        bridge.lockToken(usdc.target, amount, deadline, signature, { value: 0 })
+        bridge.lock(usdc.target, amount, deadline, signature, { value: 0 })
       ).to.be.revertedWith("Not enough service fee");
     });
   });
@@ -157,7 +157,7 @@ describe("Bridge", function () {
       const hash = ethers.keccak256(bytes);
       const sig = await signer.signMessage(ethers.toBeArray(hash));
 
-      await bridge.lockToken(usdc.target, amount, deadline, signature, {
+      await bridge.lock(usdc.target, amount, deadline, signature, {
         value: amount,
       });
 
@@ -497,12 +497,22 @@ describe("Bridge", function () {
       const { usdc, signer } = await loadFixture(deployERC20);
       const { deadline } = await loadFixture(computeDeadline);
       const { signature } = await loadFixture(computePermitSignature);
-      await bridge.lockToken(usdc.target, amount, deadline, signature, {
+      await bridge.lock(usdc.target, amount, deadline, signature, {
         value: amount,
       });
 
-      expect(await bridge.release(usdc.target, signer.address, amount)).to.not
-        .be.reverted;
+      const nonce = parseInt(await usdc.nonces(signer.address)) - 1;
+
+      const bytes = ethers.solidityPacked(
+        ["address", "address", "uint256", "uint256"],
+        [signer.address, signer.address, amount, nonce]
+      );
+      const hash = ethers.keccak256(bytes);
+      const sig = await signer.signMessage(ethers.toBeArray(hash));
+
+      expect(
+        await bridge.release(usdc.target, signer.address, amount, nonce, sig)
+      ).to.not.be.reverted;
 
       expect(await usdc.balanceOf(signer.address)).to.equal(amount);
       expect(await usdc.balanceOf(bridge.target)).to.equal(0);
@@ -513,13 +523,24 @@ describe("Bridge", function () {
       const { usdc, signer } = await loadFixture(deployERC20);
       const { deadline } = await loadFixture(computeDeadline);
       const { signature } = await loadFixture(computePermitSignature);
-      await bridge.lockToken(usdc.target, amount, deadline, signature, {
+      await bridge.lock(usdc.target, amount, deadline, signature, {
         value: amount,
       });
 
+      const nonce = parseInt(await usdc.nonces(signer.address)) - 1;
+
+      const bytes = ethers.solidityPacked(
+        ["address", "address", "uint256", "uint256"],
+        [signer.address, signer.address, amount, nonce]
+      );
+      const hash = ethers.keccak256(bytes);
+      const sig = await signer.signMessage(ethers.toBeArray(hash));
+
       const blockNumber = await ethers.provider.getBlockNumber();
 
-      await expect(bridge.release(usdc.target, signer.address, amount))
+      await expect(
+        bridge.release(usdc.target, signer.address, amount, nonce, sig)
+      )
         .to.emit(bridge, "ReleaseToken")
         .withArgs(
           usdc.target,
@@ -531,18 +552,27 @@ describe("Bridge", function () {
         );
     });
 
-    it("Should revert, if not owner calls it", async function () {
+    it("Should revert, if signature is invalid", async function () {
       const { bridge } = await loadFixture(deployBridge);
       const { usdc, signer, other } = await loadFixture(deployERC20);
       const { deadline } = await loadFixture(computeDeadline);
       const { signature } = await loadFixture(computePermitSignature);
-      await bridge.lockToken(usdc.target, amount, deadline, signature, {
+      await bridge.lock(usdc.target, amount, deadline, signature, {
         value: amount,
       });
 
+      const nonce = parseInt(await usdc.nonces(signer.address)) - 1;
+
+      const bytes = ethers.solidityPacked(
+        ["address", "address", "uint256", "uint256"],
+        [signer.address, signer.address, amount, nonce + 1]
+      );
+      const hash = ethers.keccak256(bytes);
+      const sig = await signer.signMessage(ethers.toBeArray(hash));
+
       await expect(
-        bridge.connect(other[0]).release(usdc.target, signer.address, amount)
-      ).to.be.revertedWith("Ownable: caller is not the owner");
+        bridge.release(usdc.target, signer.address, amount, nonce, sig)
+      ).to.be.revertedWith("wrong signature");
     });
   });
 });
