@@ -6,55 +6,6 @@ const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL || "";
 const MUMBAI_RPC_URL = process.env.MUMBAI_RPC_URL || "";
 const PRIVATE_KEY = process.env.PRIVATE_KEY || "0x";
 
-// task(
-//   "register",
-//   "Registers a toke by taking a token's and a bridge's addresses"
-// )
-//   .addParam("token")
-//   .addParam("bridge")
-//   .setAction(async (taskArgs, hre) => {
-//     const tokenAddr = taskArgs["token"];
-//     const bridgeAddr = taskArgs["bridge"];
-
-//     const PermitToken = await hre.ethers.getContractFactory("ERC20PermitToken");
-//     const permitToken = PermitToken.attach(tokenAddr);
-
-//     const Bridge = await hre.ethers.getContractFactory("Bridge");
-//     const bridge = Bridge.attach(bridgeAddr);
-
-//     const tx = await bridge.registerToken(permitToken.target);
-//     await tx.wait();
-//     console.log(`✅ Token(${permitToken.target}) successfully registered`);
-//   });
-
-// task("deploy", "Deploys a wrapper of an already registered token")
-//   .addParam("token")
-//   .addParam("bridge")
-//   .addParam("name")
-//   .addParam("symbol")
-//   .setAction(async (taskArgs, hre) => {
-//     const tokenAddr = taskArgs["token"];
-//     const bridgeAddr = taskArgs["bridge"];
-//     const name = taskArgs["name"];
-//     const symbol = taskArgs["symbol"];
-
-//     // const PermitToken = await hre.ethers.getContractFactory("ERC20PermitToken");
-//     // const permitToken = PermitToken.attach(tokenAddr);
-
-//     const Bridge = await hre.ethers.getContractFactory("Bridge");
-//     const bridge = Bridge.attach(bridgeAddr);
-
-//     await bridge.deployWrappedToken(tokenAddr, name, symbol);
-//     const Wrapper = await hre.ethers.getContractFactory("ERC20Token");
-//     const wrapperAddr = await bridge.createdWrappedTokens(0);
-//     const wrapper = Wrapper.attach(wrapperAddr);
-//     console.log(
-//       `✅ Wrapper of Token(${tokenAddr}) successfully deployed to: ${
-//         wrapper.target
-//       } with name: ${await wrapper.name()} and symbol: ${await wrapper.symbol()}`
-//     );
-//   });
-
 task("signature", "Returns a signature based on the passed inputs")
   .addParam("from")
   .addParam("to")
@@ -128,20 +79,6 @@ task("lock", "Locks an amount of tokens into a bridge using permit signatures")
     console.log(`✅ Tokens are locked`);
   });
 
-// task("approve", "Approves a user to claim a certain amount of wrapped tokens")
-//   .addParam("claimer")
-//   .addParam("bridge")
-//   .addParam("amount")
-//   .setAction(async (taskArgs, hre) => {
-//     const claimer = taskArgs["claimer"];
-//     const Bridge = await hre.ethers.getContractFactory("Bridge");
-//     const bridge = Bridge.attach(taskArgs["bridge"]);
-//     const amount = taskArgs["amount"];
-
-//     await bridge.approveAmount(claimer, amount);
-//     console.log(`✅ Wrapped tokens can be claimed`);
-//   });
-
 task(
   "claim",
   "Allows users to claim their wrapped tokens using singatures for verification"
@@ -204,23 +141,6 @@ task("release", "Returns the initial locked amount to the user")
     await bridge.release(permit.target, signer.address, amount);
     console.log(`✅ Tokens are released back to owner`);
   });
-
-// task("event-listener", "Starts an event listener")
-//   .addParam("to")
-//   .addParam("bridge")
-//   .addParam("token")
-//   .addParam("amount")
-//   .setAction(async (taskArgs, hre) => {
-//     const signer = await hre.ethers.getSigner(taskArgs["to"]);
-//     const Bridge = await hre.ethers.getContractFactory("Bridge");
-//     const bridge = Bridge.attach(taskArgs["bridge"]);
-//     const Permit = await hre.ethers.getContractFactory("ERC20PermitToken");
-//     const permit = await Permit.attach(taskArgs["token"]);
-//     const amount = taskArgs["amount"];
-
-//     await bridge.release(permit.target, signer.address, amount);
-//     console.log(`✅ Tokens are released back to owner`);
-//   });
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
