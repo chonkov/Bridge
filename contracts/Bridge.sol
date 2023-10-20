@@ -164,6 +164,15 @@ contract Bridge is IBridge, Ownable {
             );
         } else {
             wrapper = wrappedTokenContracts[_token];
+
+            assert(
+                keccak256(abi.encode(wrapper.name())) ==
+                    keccak256(abi.encode(_name))
+            );
+            assert(
+                keccak256(abi.encode(wrapper.symbol())) ==
+                    keccak256(abi.encode(_symbol))
+            );
         }
 
         require(

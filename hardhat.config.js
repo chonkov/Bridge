@@ -73,7 +73,7 @@ task("lock", "Locks an amount of tokens into a bridge using permit signatures")
     const deadline = taskArgs["deadline"];
     const signature = taskArgs["signature"];
 
-    await bridge.lockToken(token, amount, deadline, signature, {
+    await bridge.lock(token, amount, deadline, signature, {
       value: fee,
     });
     console.log(`✅ Tokens are locked`);
